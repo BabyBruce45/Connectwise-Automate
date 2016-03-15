@@ -57,7 +57,8 @@ Function Get-LTServiceInfo{
     }#End Try
     
     Catch{
-      Write-Output "ERROR: There was a problem reading the registry keys."
+      Write-Output "ERROR: There was a problem reading the registry keys. $Error[0]"
+      break
     }#End Catch
   }#End Process
   
@@ -100,7 +101,8 @@ Function Restart-LTService{
     }#End Try
     
     Catch{
-      Write-Output "ERROR: There was an error restarting the services."
+      Write-Output "ERROR: There was an error restarting the services. $Error[0]"
+      break
     }#End Catch
   }#End Process
   
@@ -145,7 +147,8 @@ Function Stop-LTService{
     }#End Try
     
     Catch{
-        Write-Output "ERROR: There was an error stoping the LabTech proccesses.";  
+        Write-Output "ERROR: There was an error stoping the LabTech proccesses. $Error[0]"  
+        break
     }#End Catch
   }#End Process
   
@@ -204,7 +207,8 @@ Function Start-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error starting theLabTech services."
+            Write-Output "ERROR: There was an error starting theLabTech services. $Error[0]"
+            break
         }#End Catch
     }#End Process
   
@@ -324,7 +328,8 @@ Function Uninstall-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error durring the uninstall process."
+            Write-Output "ERROR: There was an error durring the uninstall process. $Error[0]"
+            break 
         }#End Catch
     }#End Process
   
@@ -407,7 +412,8 @@ Function Install-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error durring the install process."
+            Write-Output "ERROR: There was an error durring the install process. $Error[0]"
+            break
         }#End Catch
     }#End Process
   
@@ -460,7 +466,8 @@ Function Get-LTError{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error reading the log." $Error[0]
+            Write-Output "ERROR: There was an error reading the log. $Error[0]"
+            break
         }#End Catch
     }#End Process
   
@@ -552,7 +559,8 @@ Function Reset-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error durring the reset process."
+            Write-Output "ERROR: There was an error durring the reset process. $Error[0]"
+            break
         }#End Catch
     }#End Process
   
@@ -604,7 +612,8 @@ Function Hide-LTAddRemove{
         }#End Try
     
         Catch{
-            Write-Output "There was an error renaming the registry key"
+            Write-Output "There was an error renaming the registry key. $Error[0]"
+            break
         }#End Catch
     }#End Process
   
@@ -681,7 +690,8 @@ Function Show-LTAddRemove{
         }#End Try
     
         Catch{
-            Write-Output "There was an error renaming the registry key"
+            Write-Output "There was an error renaming the registry key. $Error[0]"
+            break
         }#End Catch
     }#End Process
   
@@ -783,7 +793,8 @@ Function Test-LTPorts{
         }#End Try
     
         Catch{
-          Write-Output "ERROR: There was an error testing the ports."          
+          Write-Output "ERROR: There was an error testing the ports. $Error[0]"
+          break          
         }#End Catch
       }#End Process
   
