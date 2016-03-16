@@ -57,17 +57,61 @@ Function Get-LTServiceInfo{
     }#End Try
     
     Catch{
-      Write-Output "ERROR: There was a problem reading the registry keys. $Error[0]"
+      Write-Output "ERROR: There was a problem reading the registry keys. $($Error[0])"
       break
     }#End Catch
   }#End Process
   
   End{
-    if (!$?){
-        $Error[0]
+    if ($?){
+        $key
     }    
   }#End End
 }#End Function Get-LTServiceInfo
+
+Function Get-LTServiceSettings{ 
+<#
+.SYNOPSIS
+    This function will pull all of the registy data into an object.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  3/14/2016
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#> 
+    [CmdletBinding()]
+    Param ()
+      
+  Begin{
+    Write-Verbose "Verbose: Checking for registry keys."
+    if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
+        Write-Output "ERROR: Unable to find LTSvc settings. Make sure the service is running."
+        Break    
+    }
+    $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
+  }#End Begin
+  
+  Process{
+    Try{
+        Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -ErrorAction Stop | Select * -exclude $exclude
+    }#End Try
+    
+    Catch{
+      Write-Output "ERROR: There was a problem reading the registry keys. $($Error[0])"
+      break
+    }#End Catch
+  }#End Process
+  
+  End{
+    if ($?){
+        $key
+    }    
+  }#End End
+}#End Function Get-LTServiceSettings
 
 Function Restart-LTService{
 <#
@@ -89,7 +133,7 @@ Function Restart-LTService{
   
   Begin{
     if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-        Write-Output "ERROR: Services NOT Found" $Error[0]
+        Write-Output "ERROR: Services NOT Found" $($Error[0])
         break
     }
   }#End Begin
@@ -101,7 +145,7 @@ Function Restart-LTService{
     }#End Try
     
     Catch{
-      Write-Output "ERROR: There was an error restarting the services. $Error[0]"
+      Write-Output "ERROR: There was an error restarting the services. $($Error[0])"
       break
     }#End Catch
   }#End Process
@@ -135,7 +179,7 @@ Function Stop-LTService{
   
   Begin{
     if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-        Write-Output "ERROR: Services NOT Found" $Error[0]
+        Write-Output "ERROR: Services NOT Found" $($Error[0])
         break
     }
   }#End Begin
@@ -147,7 +191,7 @@ Function Stop-LTService{
     }#End Try
     
     Catch{
-        Write-Output "ERROR: There was an error stoping the LabTech proccesses. $Error[0]"  
+        Write-Output "ERROR: There was an error stoping the LabTech proccesses. $($Error[0])"  
         break
     }#End Catch
   }#End Process
@@ -185,7 +229,7 @@ Function Start-LTService{
    
     Begin{
         if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Output "ERROR: Services NOT Found" $Error[0]
+            Write-Output "ERROR: Services NOT Found" $($Error[0])
             break
         }
         #Kill all processes that are using port 42000
@@ -196,8 +240,10 @@ Function Start-LTService{
         }
         $process = $process | Get-Unique
         foreach ($proc in $process){
-            Write-Output "Process ID:$proc is using port 42000. Killing process."
-            Stop-Process -ID $proc -Force -Verbose
+            if ($proc -ne 0) {
+                Write-Output "Process ID:$proc is using port 42000. Killing process."
+                Stop-Process -ID $proc -Force -Verbose
+            }
         }
     }#End Begin
   
@@ -207,7 +253,7 @@ Function Start-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error starting theLabTech services. $Error[0]"
+            Write-Output "ERROR: There was an error starting theLabTech services. $($Error[0])"
             break
         }#End Catch
     }#End Process
@@ -218,7 +264,7 @@ Function Start-LTService{
             Write-Output "Services Started successfully."
         }
         else{
-             $Error[0]
+             $($Error[0])
         }
     }#End End
 }#End Function Start-LTService
@@ -328,7 +374,7 @@ Function Uninstall-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error durring the uninstall process. $Error[0]"
+            Write-Output "ERROR: There was an error durring the uninstall process. $($Error[0])"
             break 
         }#End Catch
     }#End Process
@@ -338,7 +384,7 @@ Function Uninstall-LTService{
             Write-Output "LabTech has been successfully uninstalled."
         }
         else {
-            $Error[0]
+            $($Error[0])
         }
     }#End End
 }#End Function Uninstall-LTService
@@ -394,8 +440,9 @@ Function Install-LTService{
             Write-Output "LabTech already installed."
             break
         }
-        $installer = $Server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=' + $LocationID
+        $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
         $iarg = '/i ' + $installer + ' SERVERADDRESS=' + $Server + ' SERVERPASS=' + $Password + ' LOCATION=' + $LocationID + ' /qn /l ' + $env:TEMP + '/LTAgentInstall.log'
+        Write-Output "Starting install."
     }#End Begin
   
     Process{
@@ -412,20 +459,94 @@ Function Install-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error durring the install process. $Error[0]"
+            Write-Output "ERROR: There was an error durring the install process. $($Error[0])"
             break
         }#End Catch
     }#End Process
   
     End{
         If((Get-LTServiceInfo).ID2 -lt 1 -or !(Get-LTServiceInfo).ID){
+            Write-Host ""
             Write-Output "LabTech has been installed successfullt. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
         }
         else {
-            Write-Output "ERROR: There was an error installing LabTech. Check the log, $($env:TEMP)\LTAgentInstall.log" $Error[0]
+            Write-Output "ERROR: There was an error installing LabTech. Check the log, $($env:TEMP)\LTAgentInstall.log" $($Error[0])
         }
     }#End End
 }#End Function Install-LTService
+
+Function Reinstall-LTService{
+<#
+.SYNOPSIS
+    This function will reinstall the LabTech agent from the machine.
+
+.DESCRIPTION
+    This function will stop all the LabTech services. It will then download the current agent install MSI and issue an uninstall command.
+    It will then download and run Agent_Uninstall.exe from the LabTech server. It will then scrub any remaining file/registry/service.
+
+.PARAMETER Server
+    This is the URL to your LabTech server. 
+    example: https://lt.domain.com
+    This is used to download the uninstallers.
+    If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
+
+.EXAMPLE
+    Uninstall-LTService
+    This will uninstall the LabTech agent using the server address in the registry.
+
+.EXAMPLE
+    Uninstall-LTService -Server 'https://lt.domain.com'
+    This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  3/14/2016
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#> 
+    Param(
+        [string]$Server = (Get-LTServiceInfo).'Server Address' ,
+        [string]$Password = (Get-LTServiceInfo).ServerPassword ,
+        [string]$LocationID = (Get-LTServiceInfo).LocationID   
+    )
+           
+    Begin{
+        if (!$Server){
+            $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
+        }
+        if (!$Password){
+            $Password = Read-Host -Prompt 'Provide the server password:'
+        }
+        if (!$LocationID){
+            $LocationID = Read-Host -Prompt 'Provide the LocationID'
+        }
+        Write-host "Reinstalling LabTech with the following information, Server:$Server Password:$Password LocationID:$LocationID"
+         
+    }#End Begin
+  
+    Process{
+        Try{
+            Uninstall-LTService -Server $Server
+            Install-LTService -Server $Server -Password $Password -LocationID $LocationID
+        }#End Try
+    
+        Catch{
+            Write-Output "ERROR: There was an error durring the reinstall process. $($Error[0])"
+            break 
+        }#End Catch
+    }#End Process
+  
+    End{
+        If($?){
+        }
+        else {
+            $($Error[0])
+        }
+    }#End End
+}#End Function Uninstall-LTService
 
 Function Get-LTError{
 <#
@@ -454,8 +575,8 @@ Function Get-LTError{
     Param()
     
     Begin{
-        if ($(Test-Path -Path "$((Get-LTServiceInfo).BasePath)\LTErrors.txt") -eq $False) {
-            Write-Output "ERROR: Unable to find log." $Error[0]
+        if ($(Test-Path -Path $env:windir\LTSvc\LTErrors.txt) -eq $False) {
+            Write-Output "ERROR: Unable to find log." $($Error[0])
             break
         }
     }#End Begin
@@ -466,7 +587,7 @@ Function Get-LTError{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error reading the log. $Error[0]"
+            Write-Output "ERROR: There was an error reading the log. $($Error[0])"
             break
         }#End Catch
     }#End Process
@@ -520,7 +641,7 @@ Function Reset-LTService{
     
     Begin{
         if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Output "ERROR: LabTech Services NOT Found" $Error[0]
+            Write-Output "ERROR: LabTech Services NOT Found" $($Error[0])
             break
         }
         $Reg = 'HKLM:\Software\LabTech\Service'
@@ -559,7 +680,7 @@ Function Reset-LTService{
         }#End Try
     
         Catch{
-            Write-Output "ERROR: There was an error durring the reset process. $Error[0]"
+            Write-Output "ERROR: There was an error durring the reset process. $($Error[0])"
             break
         }#End Catch
     }#End Process
@@ -612,7 +733,7 @@ Function Hide-LTAddRemove{
         }#End Try
     
         Catch{
-            Write-Output "There was an error renaming the registry key. $Error[0]"
+            Write-Output "There was an error renaming the registry key. $($Error[0])"
             break
         }#End Catch
     }#End Process
@@ -690,7 +811,7 @@ Function Show-LTAddRemove{
         }#End Try
     
         Catch{
-            Write-Output "There was an error renaming the registry key. $Error[0]"
+            Write-Output "There was an error renaming the registry key. $($Error[0])"
             break
         }#End Catch
     }#End Process
@@ -793,7 +914,7 @@ Function Test-LTPorts{
         }#End Try
     
         Catch{
-          Write-Output "ERROR: There was an error testing the ports. $Error[0]"
+          Write-Output "ERROR: There was an error testing the ports. $($Error[0])"
           break          
         }#End Catch
       }#End Process
@@ -806,6 +927,118 @@ Function Test-LTPorts{
       }#End End
 
 }#End Function Test-LTPorts
+
+Function Get-LTLogging{ 
+<#
+.SYNOPSIS
+    This function will pull the logging level of the LabTech service.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  3/14/2016
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#> 
+    [CmdletBinding()]
+    Param ()
+      
+  Begin{
+    Write-Verbose "Verbose: Checking for registry keys."
+    if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\settings') -eq $False){
+        Write-Output "ERROR: Unable to find logging settings for LTSvc. Make sure the service is running."
+        Break    
+    }
+  }#End Begin
+  
+  Process{
+    Try{
+        $Value = (Get-LTServiceSettings).Debuging
+    }#End Try
+    
+    Catch{
+      Write-Output "ERROR: There was a problem reading the registry key. $($Error[0])"
+      break
+    }#End Catch
+  }#End Process
+  
+  End{
+    if ($?){
+        if($value -eq 1){
+            Write-Host "Current logging level: Normal"
+            break
+        }
+        if($value -eq 1000){
+            Write-Host "Current logging level: Verbose"
+            break
+        }
+        else{
+            Write-Host "ERROR: Unknown Logging level $((Get-LTServiceInfo).Debuging)"
+        }
+    }    
+  }#End End
+}#End Function Get-LTLogging
+
+Function Set-LTLogging{ 
+<#
+.SYNOPSIS
+    This function will pull all of the registy data into an object.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  3/14/2016
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#> 
+   Param (
+        [switch]$Normal,
+        [switch]$Verbose
+    )
+
+      
+  Begin{
+    if ($Normal -ne $true -and $Verbose -ne $true ){
+        Write-Output "Please provide a logging level."
+        break
+    }
+
+  }#End Begin
+  
+  Process{
+    Try{
+        Stop-LTService
+        if ($Normal){
+            Set-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -Name 'Debuging' -Value 1
+        }
+        if($Verbose){
+            Set-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -Name 'Debuging' -Value 1000
+        }
+        Start-LTService
+    }#End Try
+    
+    Catch{
+      Write-Output "ERROR: There was a problem writing the registry key. $($Error[0])"
+      break
+    }#End Catch
+  }#End Process
+  
+  End{
+    if ($?){
+        Get-LTLogging          
+    }    
+  }#End End
+}#End Function Set-LTSLogging
+
+
+
+
+
+
 
 #endregion Functions
  
