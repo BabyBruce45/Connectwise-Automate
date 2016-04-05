@@ -342,8 +342,18 @@ Function Uninstall-LTService{
           'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
           'HKEY_CURRENT_USER\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
           'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F')
-        $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1' 
+        $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
+        $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
+        if ($installerTest -ne 200) {
+            Write-Output 'Unable to download Agent_Install from server.'
+            break
+        }
         $uninstaller = $server +'/Labtech/Deployment.aspx?probe=1&ID=-2'
+        $uninstallerTest = invoke-webrequest $uninstaller -DisableKeepAlive -UseBasicParsing -Method head
+        if ($uninstallerTest -ne 200) {
+            Write-Output 'Unable to download Agent_Uninstall from server.'
+            break
+        }
         $xarg = "/x $installer /qn"
     }#End Begin
   
@@ -451,6 +461,11 @@ Function Install-LTService{
             Break
         }
         $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
+        $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
+        if ($installerTest -ne 200) {
+            Write-Output 'Unable to download Agent_Install from server.'
+            break
+        }
         $iarg = '/i ' + $installer + ' SERVERADDRESS=' + $Server + ' SERVERPASS=' + $Password + ' LOCATION=' + $LocationID + ' /qn /l ' + $env:TEMP + '/LTAgentInstall.log'
         Write-Output "Starting install."
     }#End Begin
