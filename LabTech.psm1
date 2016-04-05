@@ -1033,7 +1033,7 @@ Function Set-LTLogging{
       
   Begin{
     if ($Normal -ne $true -and $Verbose -ne $true ){
-        Write-Output "Please provide a logging level."
+        Write-Output "Please provide a logging level. -Normal or -Verbose"
         break
     }
 
