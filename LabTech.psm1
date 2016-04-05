@@ -309,7 +309,12 @@ Function Uninstall-LTService{
     )   
     Begin{
         if (!$Server){
-            $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com)'
+            $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https:\\labtech.labtechconsulting.com)'
+            if ($server -notlike 'http*:\\*'){
+                Write-Output 'Server address is not formatted correctly.'
+                Write-Output 'Example: https:\\labtech.labtechconsulting.com'
+                Break
+            }
         }
         Write-Output "Starting uninstall."
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
@@ -438,7 +443,12 @@ Function Install-LTService{
     Begin{
         if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
             Write-Output "LabTech already installed."
-            break
+            Break
+        }
+        if ($server -notlike 'http*:\\*'){
+            Write-Output 'Server address is not formatted correctly.'
+            Write-Output 'Example: http:\\labtech.labtechconsulting.com'
+            Break
         }
         $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
         $iarg = '/i ' + $installer + ' SERVERADDRESS=' + $Server + ' SERVERPASS=' + $Password + ' LOCATION=' + $LocationID + ' /qn /l ' + $env:TEMP + '/LTAgentInstall.log'
@@ -516,6 +526,11 @@ Function Reinstall-LTService{
     Begin{
         if (!$Server){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
+            if ($server -notlike 'http*:\\*'){
+                Write-Output 'Server address is not formatted correctly.'
+                Write-Output 'Example: https:\\labtech.labtechconsulting.com'
+                Break
+            }
         }
         if (!$Password){
             $Password = Read-Host -Prompt 'Provide the server password:'
@@ -1034,11 +1049,4 @@ Function Set-LTLogging{
   }#End End
 }#End Function Set-LTSLogging
 
-
-
-
-
-
-
 #endregion Functions
- 
