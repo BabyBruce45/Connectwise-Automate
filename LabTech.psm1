@@ -344,13 +344,13 @@ Function Uninstall-LTService{
           'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F')
         $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
         $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
-        if ($installerTest -ne 200) {
+        if ($installerTest.StatusCode -ne 200) {
             Write-Output 'Unable to download Agent_Install from server.'
             break
         }
         $uninstaller = $server +'/Labtech/Deployment.aspx?probe=1&ID=-2'
         $uninstallerTest = invoke-webrequest $uninstaller -DisableKeepAlive -UseBasicParsing -Method head
-        if ($uninstallerTest -ne 200) {
+        if ($uninstallerTest.StatusCode -ne 200) {
             Write-Output 'Unable to download Agent_Uninstall from server.'
             break
         }
@@ -462,7 +462,7 @@ Function Install-LTService{
         }
         $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
         $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
-        if ($installerTest -ne 200) {
+        if ($installerTest.StatusCode -ne 200) {
             Write-Output 'Unable to download Agent_Install from server.'
             break
         }
