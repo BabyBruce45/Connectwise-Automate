@@ -309,10 +309,10 @@ Function Uninstall-LTService{
     )   
     Begin{
         if (!$Server){
-            $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https:\\labtech.labtechconsulting.com)'
-            if ($server -notlike 'http*:\\*'){
+            $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://labtech.labtechconsulting.com)'
+            if ($server -notlike 'http*://*'){
                 Write-Output 'Server address is not formatted correctly.'
-                Write-Output 'Example: https:\\labtech.labtechconsulting.com'
+                Write-Output 'Example: https://labtech.labtechconsulting.com'
                 Break
             }
         }
@@ -455,9 +455,9 @@ Function Install-LTService{
             Write-Output "LabTech already installed."
             Break
         }
-        if ($server -notlike 'http*:\\*'){
+        if ($server -notlike 'http*://*'){
             Write-Output 'Server address is not formatted correctly.'
-            Write-Output 'Example: http:\\labtech.labtechconsulting.com'
+            Write-Output 'Example: http://labtech.labtechconsulting.com'
             Break
         }
         $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
@@ -541,9 +541,9 @@ Function Reinstall-LTService{
     Begin{
         if (!$Server){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
-            if ($server -notlike 'http*:\\*'){
+            if ($server -notlike 'http*://*'){
                 Write-Output 'Server address is not formatted correctly.'
-                Write-Output 'Example: https:\\labtech.labtechconsulting.com'
+                Write-Output 'Example: https://labtech.labtechconsulting.com'
                 Break
             }
         }
@@ -819,7 +819,7 @@ Function Show-LTAddRemove{
 "Version"=dword:0a0500e2
 "Assignment"=dword:00000001
 "AdvertiseFlags"=dword:00000184
-"ProductIcon"="C:\\Windows\\Installer\\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}\\LabTeCh.ico"
+"ProductIcon"="C://Windows\\Installer\\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}\\LabTeCh.ico"
 "InstanceType"=dword:00000000
 "AuthorizedLUAApp"=dword:00000000
 "DeploymentFlags"=dword:00000003
