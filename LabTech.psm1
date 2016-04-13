@@ -18,7 +18,7 @@
   
 #>
 
-#requires -version 2
+#requires -version 3
 
 #Module Version
 $ModuleVersion = "1.0"
@@ -426,6 +426,9 @@ Function Install-LTService{
     This is the LocationID of the location that the agent will be put into.
     (Get-LTServiceInfo).LocationID
 
+.PARAMETER Hide
+    This will call Hide-LTService after the install.
+
 .EXAMPLE
     Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
     This will install the LabTech agent using the provided server URL, Password, and LocationID.
@@ -447,7 +450,8 @@ Function Install-LTService{
         [Parameter(Mandatory=$True)]
         [string]$Password,
         [Parameter(Mandatory=$True)]
-        [int]$LocationID
+        [int]$LocationID,
+        [switch]$Hide
 	    
     )   
     Begin{
@@ -481,6 +485,7 @@ Function Install-LTService{
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
+            if ($Hide){Hide-LTAddRemove}
         }#End Try
     
         Catch{
