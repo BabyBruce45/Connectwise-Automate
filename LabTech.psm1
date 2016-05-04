@@ -372,7 +372,8 @@ Function Uninstall-LTService{
 
             #Download and run Agent_Uninstall.exe
             Invoke-RestMethod -Uri $uninstaller -OutFile $env:windir\temp\Agent_Uninstall.exe
-            Start-Process -Wait "$env:windir\temp\Agent_Uninstall.exe"
+            Start-Process "$env:windir\temp\Agent_Uninstall.exe"
+            Start-Sleep -Seconds 30
 
             #Remove %ltsvcdir%
             Remove-Item -Recurse -Force "$env:windir\LTSvc" -ErrorAction SilentlyContinue
@@ -497,7 +498,7 @@ Function Install-LTService{
     End{
         If((Get-LTServiceInfo).ID2 -lt 1 -or !(Get-LTServiceInfo).ID){
             Write-Host ""
-            Write-Output "LabTech has been installed successfullt. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
+            Write-Output "LabTech has been installed successfully. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
         }
         else {
             Write-Output "ERROR: There was an error installing LabTech. Check the log, $($env:TEMP)\LTAgentInstall.log" $($Error[0])
