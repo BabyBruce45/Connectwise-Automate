@@ -305,7 +305,7 @@ Function Uninstall-LTService{
     [CmdletBinding()]
     Param(
         [Parameter()]
-        [string]$Server = (Get-LTServiceInfo).'Server Address'   
+        [string]$Server = ((Get-LTServiceInfo).'Server Address'.Split('|'))[0].trim()   
     )   
     Begin{
         if (!$Server){
@@ -512,8 +512,8 @@ Function Reinstall-LTService{
     This function will reinstall the LabTech agent from the machine.
 
 .DESCRIPTION
-    This function will stop all the LabTech services. It will then download the current agent install MSI and issue an uninstall command.
-    It will then download and run Agent_Uninstall.exe from the LabTech server. It will then scrub any remaining file/registry/service.
+    This script will atempt to pull all current settings from machine and issue an 'Uninstall-LTService' 'Reinstall-LTService' with gathered information. 
+    If the function is unable to find settings it will ask for needed paramaters. 
 
 .PARAMETER Server
     This is the URL to your LabTech server. 
@@ -539,7 +539,7 @@ Function Reinstall-LTService{
     http://labtechconsulting.com
 #> 
     Param(
-        [string]$Server = (Get-LTServiceInfo).'Server Address' ,
+        [string]$Server = ((Get-LTServiceInfo).'Server Address'.Split('|'))[0].trim() ,
         [string]$Password = (Get-LTServiceInfo).ServerPassword ,
         [string]$LocationID = (Get-LTServiceInfo).LocationID   
     )
@@ -559,7 +559,7 @@ Function Reinstall-LTService{
         if (!$LocationID){
             $LocationID = Read-Host -Prompt 'Provide the LocationID'
         }
-        Write-host "Reinstalling LabTech with the following information, Server:$Server Password:$Password LocationID:$LocationID"
+        Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID"
          
     }#End Begin
   
@@ -582,7 +582,7 @@ Function Reinstall-LTService{
             $($Error[0])
         }
     }#End End
-}#End Function Uninstall-LTService
+}#End Function Reinstall-LTService
 
 Function Get-LTError{
 <#
@@ -918,7 +918,7 @@ Function Test-LTPorts{
         }
 
     }#End Function TestPort
-        $Servers = ((Get-LTServiceInfo).'server address'.Split(';')).trimstart('https://')
+        $Servers = (((Get-LTServiceInfo).'Server Address'.Split('|')) -replace("(http|https)://",'')).trim()
         [array]$process = @()
     }#End Begin
   
