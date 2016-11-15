@@ -1070,4 +1070,17 @@ Function Set-LTLogging{
   }#End End
 }#End Function Set-LTSLogging
 
+function Get-LTProbeErrors {
+    $errors = Get-Content C:\Windows\LTSvc\LTProbeErrors.txt
+    $errors = $errors -join ' ' -split ':::'
+    foreach($Line in $Errors){
+        $items = $Line -split "`t" -replace ' - ',''
+        $object = New-Object –TypeName PSObject
+        $object | Add-Member –MemberType NoteProperty –Name ServiceVersion –Value $items[0]
+        $object | Add-Member –MemberType NoteProperty –Name Timestamp –Value $([datetime]$items[1])
+        $object | Add-Member –MemberType NoteProperty –Name Message –Value $items[2]
+        Write-Output $object
+    }
+}#End Function Get-LTProbeErrors
+
 #endregion Functions
