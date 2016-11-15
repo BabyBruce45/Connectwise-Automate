@@ -681,7 +681,7 @@ Function Reset-LTService{
             break
         }
         $Reg = 'HKLM:\Software\LabTech\Service'
-        if (!($ID -and $LocationID -and $MAC)){
+        if (!($ID -or $LocationID -or $MAC)){
             $ID=$true
             $Location=$true
             $MAC=$true
