@@ -492,7 +492,6 @@ Function Install-LTService{
 
         $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$Server SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:TEMP\LTAgentInstall.log"
         Write-Output "Starting install."
-        Write-Output "Iarg: $iarg"
     }#End Begin
   
     Process{
