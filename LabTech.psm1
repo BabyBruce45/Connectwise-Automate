@@ -499,7 +499,7 @@ Function Install-LTService{
             Start-Process -Wait -FilePath msiexec -ArgumentList $iarg
             Write-Host -NoNewline "Waiting for agent to register." 
             Start-Sleep 5
-            $timeout = new-timespan -Minutes 1
+            $timeout = new-timespan -Minutes 2
             $sw = [diagnostics.stopwatch]::StartNew()
             while (((Get-LTServiceInfo).ID -lt 1 -or !(Get-LTServiceInfo).ID) -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
@@ -585,6 +585,7 @@ Function Reinstall-LTService{
     Process{
         Try{
             Uninstall-LTService -Server $Server
+            Start-Sleep 1
             Install-LTService -Server $Server -Password $Password -LocationID $LocationID
         }#End Try
     
