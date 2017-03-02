@@ -1,18 +1,4 @@
-﻿#Ignore SSL errors
-add-type @"
-    using System.Net;
-    using System.Security.Cryptography.X509Certificates;
-    public class TrustAllCertsPolicy : ICertificatePolicy {
-        public bool CheckValidationResult(
-            ServicePoint srvPoint, X509Certificate certificate,
-            WebRequest request, int certificateProblem) {
-            return true;
-        }
-    }
-"@
-[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-
-<#
+﻿<#
 .SYNOPSIS
     This is a PowerShell Module for LabTech.
     labtechconsulting.com
@@ -36,6 +22,20 @@ add-type @"
 
 #Module Version
 $ModuleVersion = "1.0"
+
+#Ignore SSL errors
+add-type @"
+    using System.Net;
+    using System.Security.Cryptography.X509Certificates;
+    public class TrustAllCertsPolicy : ICertificatePolicy {
+        public bool CheckValidationResult(
+            ServicePoint srvPoint, X509Certificate certificate,
+            WebRequest request, int certificateProblem) {
+            return true;
+        }
+    }
+"@
+[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
  
 #region-[Functions]------------------------------------------------------------
 
@@ -333,6 +333,7 @@ Function Uninstall-LTService{
         Write-Output "Starting uninstall."
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @('HKLM:\Software\LabTech',
+          'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
           'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech',
           'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3426921d-9ad5-4237-9145-f15dee7e3004}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
