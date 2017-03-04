@@ -322,6 +322,10 @@ Function Uninstall-LTService{
         [string]$Server = ((Get-LTServiceInfo).'Server Address'.Split('|'))[0].trim()   
     )   
     Begin{
+        If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
+            Write-Output "Needs to be ran as Administrator"
+            Exit 
+        }
         if (!$Server){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://labtech.labtechconsulting.com)'
             if ($server -notlike 'http*://*'){
@@ -471,28 +475,56 @@ Function Install-LTService{
 	    
     )   
     Begin{
-        if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
-            Write-Output "LabTech is already installed."
-            Break
+        If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
+            Write-Output "Needs to be ran as Administrator"
+            Exit 
         }
-        if ($server -notlike 'http*://*'){
-            Write-Output 'Server address is not formatted correctly.'
-            Write-Output 'Example: http://labtech.labtechconsulting.com'
-            Break
+        
+        $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
+        if(!($DotNet -like '3.5.*')){
+            Write-Output ".NET 3.5 Needs installing."
+            #Install-WindowsFeature Net-Framework-Core
+            $Result = Dism /online /get-featureinfo /featurename:NetFx3 
+            If($Result -contains "State : Enabled"){ 
+                Write-Warning ".Net Framework 3.5 has been installed and enabled." 
+            } 
+            Else{
+                Write-Output "ERROR: .NET 3.5 install failed."
+                Write-Output $Result
+                Exit
+            } 
+            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
         }
-        $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
-        $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
-        if ($installerTest.StatusCode -ne 200) {
-            Write-Output 'Unable to download Agent_Install from server.'
-            break
+        if($DotNet -like '3.5.*'){
+            if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
+                Write-Output "LabTech is already installed."
+                Break
+            }
+
+            if ($server -notlike 'http*://*'){
+                Write-Output 'Server address is not formatted correctly.'
+                Write-Output 'Example: http://labtech.labtechconsulting.com'
+                Break
+            }
+            $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
+            $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
+            if ($installerTest.StatusCode -ne 200) {
+                Write-Output 'Unable to download Agent_Install from server.'
+                break
+            }
+            else{
+                New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
+                Invoke-RestMethod -Uri $installer -OutFile $env:windir\temp\LabTech\Installer\Agent_Install.msi
+            }
+
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$Server SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            Write-Output "Starting install."
         }
         else{
-            New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
-            Invoke-RestMethod -Uri $installer -OutFile $env:windir\temp\LabTech\Installer\Agent_Install.msi
+            Exit
         }
 
-        $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$Server SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
-        Write-Output "Starting install."
+        
     }#End Begin
   
     Process{
