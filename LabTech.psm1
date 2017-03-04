@@ -472,7 +472,7 @@ Function Install-LTService{
     )   
     Begin{
         if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
-            Write-Output "LabTech already installed."
+            Write-Output "LabTech is already installed."
             Break
         }
         if ($server -notlike 'http*://*'){
@@ -491,7 +491,7 @@ Function Install-LTService{
             Invoke-RestMethod -Uri $installer -OutFile $env:windir\temp\LabTech\Installer\Agent_Install.msi
         }
 
-        $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$Server SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:TEMP\LTAgentInstall.log"
+        $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$Server SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
         Write-Output "Starting install."
     }#End Begin
   
@@ -521,7 +521,8 @@ Function Install-LTService{
             Write-Output "LabTech has been installed successfully. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
         }
         else {
-            Write-Output "ERROR: There was an error installing LabTech. Check the log, $($env:TEMP)\LTAgentInstall.log" $($Error[0])
+            Write-Output "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log" 
+            Write-Output $($Error[0])
         }
     }#End End
 }#End Function Install-LTService
