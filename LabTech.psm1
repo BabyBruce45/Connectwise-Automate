@@ -324,7 +324,7 @@ Function Uninstall-LTService{
     Begin{
         If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Write-Output "Needs to be ran as Administrator"
-            Exit 
+            break 
         }
         if (!$Server){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://labtech.labtechconsulting.com)'
@@ -477,7 +477,7 @@ Function Install-LTService{
     Begin{
         If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Write-Output "Needs to be ran as Administrator"
-            Exit 
+            break 
         }
         
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
@@ -491,7 +491,7 @@ Function Install-LTService{
             Else{
                 Write-Output "ERROR: .NET 3.5 install failed."
                 Write-Output $Result
-                Exit
+                break
             } 
             $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
         }
@@ -521,7 +521,8 @@ Function Install-LTService{
             Write-Output "Starting install."
         }
         else{
-            Exit
+            Write-Output "ERROR: .NET 3.5 is not detected and the install method has failed."
+            break
         }
 
         
