@@ -619,7 +619,7 @@ Function Reinstall-LTService{
     Process{
         Try{
             Uninstall-LTService -Server $Server
-            Start-Sleep 1
+            Start-Sleep 10
             Install-LTService -Server $Server -Password $Password -LocationID $LocationID
         }#End Try
     
