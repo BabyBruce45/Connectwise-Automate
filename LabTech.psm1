@@ -484,16 +484,31 @@ Function Install-LTService{
         if(!($DotNet -like '3.5.*')){
             Write-Output ".NET 3.5 Needs installing."
             #Install-WindowsFeature Net-Framework-Core
-            $Result = Dism /online /get-featureinfo /featurename:NetFx3 
-            If($Result -contains "State : Enabled"){ 
-                Write-Warning ".Net Framework 3.5 has been installed and enabled." 
-            } 
-            Else{
-                Write-Output "ERROR: .NET 3.5 install failed."
-                Write-Output $Result
-                break
-            } 
-            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
+            $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem).version
+
+            if($OSVersion -gt 6.2){
+                try{
+                    Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All
+                }
+                catch{
+                    Write-Output "ERROR: .NET 3.5 install failed."
+                    Write-Output $Result
+                    break   
+                }
+            }
+            else{
+                $Result = Dism /online /get-featureinfo /featurename:NetFx3 
+                If($Result -contains "State : Enabled"){ 
+                    Write-Warning ".Net Framework 3.5 has been installed and enabled." 
+                } 
+                Else{
+                    Write-Output "ERROR: .NET 3.5 install failed."
+                    Write-Output $Result
+                    break
+                } 
+            }
+            
+            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where-Object{ $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
         }
         if($DotNet -like '3.5.*'){
             if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
