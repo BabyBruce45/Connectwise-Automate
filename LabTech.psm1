@@ -335,6 +335,8 @@ Function Uninstall-LTService{
             }
         }
         Write-Output "Starting uninstall."
+        $BasePath = $(Get-LTServiceInfo).BasePath
+        if (!$BasePath){$BasePath = 'C:\Windows\LTSVC'}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @('HKLM:\Software\LabTech',
           'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
@@ -378,10 +380,14 @@ Function Uninstall-LTService{
   
     Process{
         Try{
-            Get-Process | Where-Object -Property ProcessName -In -Value 'LTTray','LTSVC','LTSvcMon' | Stop-Process -Force -ErrorAction SilentlyContinue
+            #Kill all running processes from %ltsvcdir%        
+            $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse).Name.Trim('.exe')
+            ForEach($Item in $Executables){
+                Stop-Process -Name $Item -Force  -ErrorAction SilentlyContinue
+            }
 
             #Unregister DLL
-            regsvr32 /u C:\WINDOWS\LTSvc\wodVPN.dll /s
+            regsvr32 /u $BasePath\wodVPN.dll /s
 
             #Cleanup previous uninstallers
             Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue
@@ -1141,7 +1147,9 @@ Function Set-LTLogging{
 }#End Function Set-LTSLogging
 
 function Get-LTProbeErrors {
-    $errors = Get-Content C:\Windows\LTSvc\LTProbeErrors.txt
+    $BasePath = $(Get-LTServiceInfo).BasePath
+    if (!$BasePath){$BasePath = 'C:\Windows\LTSVC'}
+    $errors = Get-Content $BasePath\LTProbeErrors.txt
     $errors = $errors -join ' ' -split ':::'
     foreach($Line in $Errors){
         $items = $Line -split "`t" -replace ' - ',''
