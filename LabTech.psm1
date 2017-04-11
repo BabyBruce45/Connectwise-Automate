@@ -368,7 +368,7 @@ Function Uninstall-LTService{
             #Kill all running processes from %ltsvcdir%        
             $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse).Name.Trim('.exe')
             ForEach($Item in $Executables){
-                Stop-Process -Name $Item -Force  -ErrorAction SilentlyContinue
+                Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
             }
 
             #Unregister DLL
@@ -381,9 +381,9 @@ Function Uninstall-LTService{
             Start-Process -Wait -FilePath msiexec -ArgumentList $xarg
 
             #Download and run Agent_Uninstall.exe
-            Invoke-RestMethod -Uri $uninstaller -OutFile $env:windir\temp\Agent_Uninstall.exe
-            Start-Process "$env:windir\temp\Agent_Uninstall.exe"
-            Start-Sleep -Seconds 30
+            Invoke-RestMethod -Uri $uninstaller -OutFile "$env:windir\temp\Agent_Uninstall.exe"
+            Start-Process "$env:windir\temp\Agent_Uninstall.exe" -Wait
+            Start-Sleep -Seconds 10
 
             #Remove %ltsvcdir%
             Remove-Item -Recurse -Force $BasePath -ErrorAction SilentlyContinue
