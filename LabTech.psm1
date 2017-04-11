@@ -323,7 +323,7 @@ Function Uninstall-LTService{
         }
         Write-Output "Starting uninstall."
         $BasePath = $(Get-LTServiceInfo).BasePath
-        if (!$BasePath){$BasePath = 'C:\Windows\LTSVC'}
+        if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @('HKLM:\Software\LabTech',
           'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
@@ -659,7 +659,7 @@ Function Get-LTError{
     
     Begin{
         $BasePath = $(Get-LTServiceInfo).BasePath
-        if (!$BasePath){$BasePath = 'C:\Windows\LTSVC'}
+        if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
         }
@@ -1145,7 +1145,7 @@ Function Get-LTProbeErrors {
     
     Begin{
         $BasePath = $(Get-LTServiceInfo).BasePath
-        if (!$BasePath){$BasePath = 'C:\Windows\LTSVC'}
+        if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
         }
