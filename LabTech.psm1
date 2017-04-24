@@ -365,15 +365,17 @@ Function Uninstall-LTService{
   
     Process{
         Try{
-            #Kill all running processes from %ltsvcdir%        
-            $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue).Name.Trim('.exe')
-            ForEach($Item in $Executables){
-                Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
-            }
+            #Kill all running processes from %ltsvcdir%   
+            if(Test-Path $BasePath){
+                $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue).Name.Trim('.exe')
+                ForEach($Item in $Executables){
+                    Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
+                }
 
-            #Unregister DLL
-            regsvr32 /u $BasePath\wodVPN.dll /s
-
+                #Unregister DLL
+                regsvr32 /u $BasePath\wodVPN.dll /s            
+            }     
+            
             #Cleanup previous uninstallers
             Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue
 
