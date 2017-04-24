@@ -366,7 +366,7 @@ Function Uninstall-LTService{
     Process{
         Try{
             #Kill all running processes from %ltsvcdir%        
-            $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse).Name.Trim('.exe')
+            $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue).Name.Trim('.exe')
             ForEach($Item in $Executables){
                 Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
             }
@@ -469,7 +469,7 @@ Function Install-LTService{
             Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
         }
         
-        $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
+        $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
         if(!($DotNet -like '3.5.*')){
             Write-Output ".NET 3.5 Needs installing."
             #Install-WindowsFeature Net-Framework-Core
@@ -477,7 +477,7 @@ Function Install-LTService{
 
             if($OSVersion -gt 6.2){
                 try{
-                    Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All
+                    Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All | Out-Null
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
