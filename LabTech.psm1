@@ -71,7 +71,7 @@ Function Get-LTServiceInfo{
     }#End Try
     
     Catch{
-      Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])" -ErrorAction Stop
+      Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])"
     }#End Catch
   }#End Process
   
