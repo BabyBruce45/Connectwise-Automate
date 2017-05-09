@@ -310,7 +310,7 @@ Function Uninstall-LTService{
     [CmdletBinding()]
     Param(
         [Parameter()]
-        [string]$Server #= (Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'
+        [string]$Server = ((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|'))[0].trim()    
     )   
     Begin{
         If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
@@ -322,7 +322,7 @@ Function Uninstall-LTService{
                 Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
             }        
         }
-        $Server = $Server.Split('|')[0].trim()
+        $Server = ($Server.Split('|'))[0].trim()
         Write-Output "Starting uninstall."
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
