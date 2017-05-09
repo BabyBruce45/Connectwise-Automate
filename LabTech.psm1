@@ -325,7 +325,7 @@ Function Uninstall-LTService{
             }
         }
         Write-Output "Starting uninstall."
-        $BasePath = $(Get-LTServiceInfo).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @('HKLM:\Software\LabTech',
@@ -593,9 +593,9 @@ Function Reinstall-LTService{
     http://labtechconsulting.com
 #> 
     Param(
-        [string]$Server = ((Get-LTServiceInfo).'Server Address'.Split('|'))[0].trim() ,
-        [string]$Password = (Get-LTServiceInfo).ServerPassword ,
-        [string]$LocationID = (Get-LTServiceInfo).LocationID   
+        [string]$Server = ((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|'))[0].trim() ,
+        [string]$Password = (Get-LTServiceInfo -ErrorAction SilentlyContinue).ServerPassword ,
+        [string]$LocationID = (Get-LTServiceInfo -ErrorAction SilentlyContinue).LocationID   
     )
            
     Begin{
@@ -663,7 +663,7 @@ Function Get-LTError{
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
@@ -977,7 +977,7 @@ Function Test-LTPorts{
         }
 
     }#End Function TestPort
-        $Servers = (((Get-LTServiceInfo).'Server Address'.Split('|')) -replace("(http|https)://",'')).trim()
+        $Servers = (((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|')) -replace("(http|https)://",'')).trim()
         [array]$process = @()
     }#End Begin
   
@@ -1149,7 +1149,7 @@ Function Get-LTProbeErrors {
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
