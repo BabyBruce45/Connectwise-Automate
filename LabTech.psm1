@@ -59,7 +59,8 @@ Function Get-LTServiceInfo{
   Begin{
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
-        Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running." -ErrorAction Stop
+        Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
+        Return
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
   }#End Begin
