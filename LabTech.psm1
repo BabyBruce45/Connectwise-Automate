@@ -310,7 +310,7 @@ Function Uninstall-LTService{
     [CmdletBinding()]
     Param(
         [Parameter()]
-        [string]$Server = (Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'
+        [string]$Server #= (Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'
     )   
     Begin{
         If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
