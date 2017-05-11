@@ -227,6 +227,10 @@ Function Start-LTService{
     website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 5/11/2017
+    Purpose/Change: added check for non standard port number and set services to auto start
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -238,16 +242,17 @@ Function Start-LTService{
         if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
         }
-        #Kill all processes that are using port 42000
+        #Kill all processes that are using the tray port 
         [array]$process = @()
-        $netstat = netstat -a -o -n | Select-String 42000
+        $Port = (Get-LTServiceInfo).TrayPort
+        $netstat = netstat -a -o -n | Select-String $Port
         foreach ($line in $netstat){
             $process += ($line -split '  {3,}')[-1]
         }
-        $process = $process | Get-Unique
+        $process = $process | Sort-Object | Get-Unique
         foreach ($proc in $process){
             if ($proc -ne 0) {
-                Write-Output "Process ID:$proc is using port 42000. Killing process."
+                Write-Output "Process ID:$proc is using port $Port. Killing process."
                 Stop-Process -ID $proc -Force -Verbose
             }
         }
@@ -256,6 +261,8 @@ Function Start-LTService{
     Process{
         Try{
             Start-Service 'LTService','LTSvcMon'
+            Set-Service 'LTService' -StartupType Automatic
+            Set-Service 'LTSvcMon' -StartupType Automatic
         }#End Try
     
         Catch{
