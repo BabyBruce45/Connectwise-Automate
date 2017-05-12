@@ -296,6 +296,9 @@ Function Uninstall-LTService{
     This is used to download the uninstallers.
     If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
 
+.PARAMETER Backup
+    This will run a 'New-LTServiceBackup' before uninstalling.
+
 .EXAMPLE
     Uninstall-LTService
     This will uninstall the LabTech agent using the server address in the registry.
@@ -317,7 +320,8 @@ Function Uninstall-LTService{
     [CmdletBinding()]
     Param(
         [Parameter()]
-        [string]$Server = (Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'  
+        [string]$Server = (Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address',
+        [switch]$Backup
     )   
     Begin{
         If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
@@ -328,6 +332,9 @@ Function Uninstall-LTService{
             if ($server -notlike 'http*://*'){
                 Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
             }        
+        }
+        if($Backup){
+            New-LTServiceBackup
         }
         $Server = ($Server.Split('|'))[0].trim()
         Write-Output "Starting uninstall."
@@ -584,8 +591,20 @@ Function Reinstall-LTService{
     This is used to download the uninstallers.
     If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
 
+.PARAMETER Password
+    This is the Server Password to your LabTech server. 
+    example: sRWyzEF0KaFzHTnyP56vgA==
+    You can find this from an configured agent with, '(Get-LTServiceInfo).ServerPassword'
+    
+.PARAMETER LocationID
+    The LocationID of the location that you want the agent in
+    example: 555
+
+.PARAMETER Backup
+    This will run a New-LTServiceBackup comand before uninstalling.
+
 .EXAMPLE
-    Uninstall-LTService
+    Uninstall-LTService 
     This will uninstall the LabTech agent using the server address in the registry.
 
 .EXAMPLE
@@ -604,7 +623,8 @@ Function Reinstall-LTService{
     Param(
         [string]$Server = ((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|'))[0].trim() ,
         [string]$Password = (Get-LTServiceInfo -ErrorAction SilentlyContinue).ServerPassword ,
-        [string]$LocationID = (Get-LTServiceInfo -ErrorAction SilentlyContinue).LocationID   
+        [string]$LocationID = (Get-LTServiceInfo -ErrorAction SilentlyContinue).LocationID,
+        [switch]$Backup   
     )
            
     Begin{
@@ -625,6 +645,9 @@ Function Reinstall-LTService{
     }#End Begin
   
     Process{
+        if($Backup){
+            New-LTServiceBackup
+        }
         Try{
             Uninstall-LTService -Server $Server
             Start-Sleep 10
