@@ -542,7 +542,7 @@ Function Install-LTService{
             Start-Sleep 5
             $timeout = new-timespan -Minutes 2
             $sw = [diagnostics.stopwatch]::StartNew()
-            while (((Get-LTServiceInfo).ID -lt 1 -or !(Get-LTServiceInfo).ID) -and $sw.elapsed -lt $timeout){
+            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue).ID -lt 1 -or !(Get-LTServiceInfo).ID) -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -934,17 +934,26 @@ Function Test-LTPorts{
     The function will make sure that LTTray is using UDP 42000.
     It will then test all the required TCP ports.
 
+.PARAMETER Quiet
+    This will return a bool for connectivity to the Server
+
 .NOTES
     Version:        1.0
     Author:         Chris Taylor
     website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date:    5/11/2017 
+    Purpose/Change: Quiet feature
+
 .LINK
     http://labtechconsulting.com
 #>
     [CmdletBinding()]
-    Param()
+    Param(
+        [switch]$Quiet
+    )
 
     Begin{
         Function TestPort{
@@ -988,6 +997,11 @@ Function Test-LTPorts{
     }#End Begin
   
       Process{
+        if($Quiet){
+            $Server = ($((Get-LTServiceInfo).'Server Address').Split('|'))[0].trim()
+            Test-Connection $Server -Quiet
+            return
+        }
         Try{
             #Get all processes that are using port 42000
             $netstat = netstat -a -o -n | Select-String 42000
