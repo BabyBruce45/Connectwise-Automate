@@ -1035,7 +1035,9 @@ Function Test-LTPorts{
   
       End{
         If($?){
-          Write-Output "Finished"
+            if(!$Quiet){
+                Write-Output "Finished"
+            }          
         }
         else{$Error[0]}
       }#End End
