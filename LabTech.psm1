@@ -334,8 +334,7 @@ Function Uninstall-LTService{
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
-        $regs = @('HKLM:\Software\LabTech',
-          'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
+        $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
           'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech',
           'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3426921d-9ad5-4237-9145-f15dee7e3004}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
@@ -358,7 +357,11 @@ Function Uninstall-LTService{
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
           'Registry::HKEY_CURRENT_USER\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
-          'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F')
+          'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+          'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}')
         $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
         $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
         if ($installerTest.StatusCode -ne 200) {
@@ -1199,7 +1202,7 @@ Function Get-LTProbeErrors {
 Function New-LTServiceBackup {
 <#
 .SYNOPSIS
-    This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTech\ServiceBackup'
+    This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTechBackup'
     This will also backup those files to "$((Get-LTServiceInfo).BasePath)Backup"
 
 .NOTES
@@ -1212,14 +1215,14 @@ Function New-LTServiceBackup {
     http://labtechconsulting.com
 #> 
     $BackupPath = "$((Get-LTServiceInfo).BasePath)Backup"
-    $Keys = 'HKLM\SOFTWARE\LabTech\Service'
+    $Keys = 'HKLM\SOFTWARE\LabTech'
     $Path = "$BackupPath\LTBackup.reg"
     reg export $Keys $Path /y
     $Reg = Get-Content $Path
-    $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\Service'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\ServiceBackup'
+    $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
     $Reg | Out-File $Path
     reg import $Path
-    Copy-Item $(Get-LTServiceInfo).BasePath "$((Get-LTServiceInfo).BasePath)Backup" -Recurse    
+    Copy-Item $(Get-LTServiceInfo).BasePath "$((Get-LTServiceInfo).BasePath)Backup" -Recurse -Force    
 }#End Function New-LTServiceBackup
 
 Function Get-LTServiceInfoBackup { 
