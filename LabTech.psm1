@@ -998,8 +998,7 @@ Function Test-LTPorts{
   
       Process{
         if($Quiet){
-            $Server = ($((Get-LTServiceInfo).'Server Address').Split('|'))[0].trim()
-            Test-Connection $Server -Quiet
+            Test-Connection $Servers -Quiet
             return
         }
         Try{
