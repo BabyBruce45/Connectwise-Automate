@@ -217,7 +217,7 @@ Function Start-LTService{
     This function will start the LabTech Services.
 
 .DESCRIPTION
-    This funtion will verify that the LabTech services are present.
+    This function will verify that the LabTech services are present.
     It will then check for any proccess that is using port 42000 and kill it.
     Next it will start the services.
 
