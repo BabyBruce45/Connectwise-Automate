@@ -1267,7 +1267,7 @@ Function Get-LTServiceInfoBackup {
       
   Begin{
     Write-Verbose "Verbose: Checking for registry keys."
-    if ((Test-Path 'HKLM:\SOFTWARE\LabTech\ServiceBackup') -eq $False){
+    if ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
         Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
         Return
     }
@@ -1276,7 +1276,7 @@ Function Get-LTServiceInfoBackup {
   
   Process{
     Try{
-        Get-ItemProperty HKLM:\SOFTWARE\LabTech\ServiceBackup -ErrorAction Stop | Select * -exclude $exclude
+        Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select * -exclude $exclude
     }#End Try
     
     Catch{
