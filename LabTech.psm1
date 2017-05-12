@@ -1196,5 +1196,74 @@ Function Get-LTProbeErrors {
     }#End End
 }#End Function Get-LTProbeErrors
 
+Function New-LTServiceBackup {
+<#
+.SYNOPSIS
+    This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTech\ServiceBackup'
+    This will also backup those files to "$((Get-LTServiceInfo).BasePath)Backup"
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  5/11/2017
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#> 
+    $BackupPath = "$((Get-LTServiceInfo).BasePath)Backup"
+    $Keys = 'HKLM\SOFTWARE\LabTech\Service'
+    $Path = "$BackupPath\LTBackup.reg"
+    reg export $Keys $Path /y
+    $Reg = Get-Content $Path
+    $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\Service'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\ServiceBackup'
+    $Reg | Out-File $Path
+    reg import $Path
+    Copy-Item $(Get-LTServiceInfo).BasePath "$((Get-LTServiceInfo).BasePath)Backup" -Recurse    
+}#End Function New-LTServiceBackup
+
+Function Get-LTServiceInfoBackup { 
+<#
+.SYNOPSIS
+    This function will pull all of the backed up registy data into an object.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  5/11/2017
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#> 
+    [CmdletBinding()]
+    Param ()
+      
+  Begin{
+    Write-Verbose "Verbose: Checking for registry keys."
+    if ((Test-Path 'HKLM:\SOFTWARE\LabTech\ServiceBackup') -eq $False){
+        Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
+        Return
+    }
+    $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
+  }#End Begin
+  
+  Process{
+    Try{
+        Get-ItemProperty HKLM:\SOFTWARE\LabTech\ServiceBackup -ErrorAction Stop | Select * -exclude $exclude
+    }#End Try
+    
+    Catch{
+      Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])"
+    }#End Catch
+  }#End Process
+  
+  End{
+    if ($?){
+        $key
+    }    
+  }#End End
+}#End Function Get-LTServiceInfoBackup
+
 
 #endregion Functions
