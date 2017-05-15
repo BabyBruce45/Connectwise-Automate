@@ -342,7 +342,7 @@ Function Uninstall-LTService{
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
-          'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech',
+          'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech\Service',
           'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3426921d-9ad5-4237-9145-f15dee7e3004}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
@@ -368,7 +368,10 @@ Function Uninstall-LTService{
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}')
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+          'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
+)
         $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
         $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
         if ($installerTest.StatusCode -ne 200) {
@@ -603,6 +606,9 @@ Function Reinstall-LTService{
 .PARAMETER Backup
     This will run a New-LTServiceBackup comand before uninstalling.
 
+.PARAMETER Hide
+    Will remove from add-remove programs
+
 .EXAMPLE
     Uninstall-LTService 
     This will uninstall the LabTech agent using the server address in the registry.
@@ -624,7 +630,8 @@ Function Reinstall-LTService{
         [string]$Server = ((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|'))[0].trim() ,
         [string]$Password = (Get-LTServiceInfo -ErrorAction SilentlyContinue).ServerPassword ,
         [string]$LocationID = (Get-LTServiceInfo -ErrorAction SilentlyContinue).LocationID,
-        [switch]$Backup   
+        [switch]$Backup,
+        [switch]$Hide
     )
            
     Begin{
@@ -641,7 +648,8 @@ Function Reinstall-LTService{
             $LocationID = Read-Host -Prompt 'Provide the LocationID'
         }
         Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID"
-         
+
+        $Server = ($Server.Split('|'))[0].trim()
     }#End Begin
   
     Process{
@@ -651,7 +659,7 @@ Function Reinstall-LTService{
         Try{
             Uninstall-LTService -Server $Server
             Start-Sleep 10
-            Install-LTService -Server $Server -Password $Password -LocationID $LocationID
+            Install-LTService -Server $Server -Password $Password -LocationID $LocationID -Hide:$Hide
         }#End Try
     
         Catch{
@@ -846,15 +854,18 @@ Function Hide-LTAddRemove{
     Param()
 
     Begin{
-        $RegRoot = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F'
-        if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue) {
-            Write-Output "LabTech found in add/remove programs."
+        $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F','HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
+        foreach($RegRoot in $RegRoots){
+            if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue) {
+                Write-Output "LabTech found in add/remove programs."
+            }
+            else {
+                if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
+                    Write-Error "LabTech already hidden from add/remove programs." -ErrorAction Stop
+                }    
+            }
         }
-        else {
-            if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
-                Write-Error "LabTech already hidden from add/remove programs." -ErrorAction Stop
-            }    
-        }
+        
     }#End Begin
   
     Process{
@@ -897,45 +908,38 @@ Function Show-LTAddRemove{
     Param()
 
     Begin{
-        if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue){
-            Write-Warning "LabTech already shown in add/remove programs." -ErrorAction Stop
-        }
-        $RegRoot = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F'
+        $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
     }#End Begin
   
     Process{
         Try{
-            if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue){
-                Rename-ItemProperty $RegRoot -Name HiddenProductName -NewName ProductName
-            }
-            else{
-                $RegImport = @'
-[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F]
-"ProductName"="LabTech® Software Remote Agent"
-"PackageCode"="3C90D7DE9DA96DD40BE91B7D022A49F0"
+            foreach($RegRoot in $RegRoots){
+
+                if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue){
+                    Rename-ItemProperty $RegRoot -Name HiddenProductName -NewName ProductName
+                }
+                else{
+                    $RegImport = @'
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC]
+"PackageCode"="8059C8AD908AB434A9F2225AF86355C2"
 "Language"=dword:00000409
-"Version"=dword:0a0500e2
+"Version"=dword:0b00016d
 "Assignment"=dword:00000001
 "AdvertiseFlags"=dword:00000184
-"ProductIcon"="C://Windows\\Installer\\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}\\LabTeCh.ico"
+"ProductIcon"="C:\\WINDOWS\\Installer\\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}\\LabTeCh.ico"
 "InstanceType"=dword:00000000
 "AuthorizedLUAApp"=dword:00000000
 "DeploymentFlags"=dword:00000003
 "Clients"=hex(7):3a,00,00,00,00,00
-[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F\SourceList]
-"PackageName"="Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
-[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F\SourceList\Media]
-"1"=";"
-[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F\SourceList\URL]
-"SourceType"=dword:00000002
+"ProductName"="LabTech® Software Remote Agent"
 '@
-                $RegImport | Out-File "$env:TEMP\LT.reg" -Force
-                Start-Process -Wait -FilePath reg -ArgumentList "import $($env:TEMP)\LT.reg"
-                Remove-Item "$env:TEMP\LT.reg" -Force
-                New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
-                New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    $RegImport | Out-File "$env:TEMP\LT.reg" -Force
+                    Start-Process -Wait -FilePath reg -ArgumentList "import $($env:TEMP)\LT.reg"
+                    Remove-Item "$env:TEMP\LT.reg" -Force
+                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                }
             }
-            
         }#End Try
     
         Catch{
@@ -1290,6 +1294,51 @@ Function Get-LTServiceInfoBackup {
     }    
   }#End End
 }#End Function Get-LTServiceInfoBackup
+
+Function Rename-LTAddRemove{
+<#
+.SYNOPSIS
+    This function renames the LabTech install from add/remove programs list.
+
+.DESCRIPTION
+    This function will change the value of the DisplayName registry key to effect add/remove programs list.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    website:        labtechconsulting.com
+    Creation Date:  5/14/2017
+    Purpose/Change: Initial script development
+.LINK
+    http://labtechconsulting.com
+#>
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        $Name
+    )
+
+    Begin{
+        $RegRoot = 'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'       
+    }#End Begin
+  
+    Process{
+        Try{
+            Set-ItemProperty $RegRoot -Name ProductName -Value $Name
+        }#End Try
+    
+        Catch{
+            Write-Error "There was an error renaming the registry key. $($Error[0])" -ErrorAction Stop
+        }#End Catch
+    }#End Process
+  
+    End{
+        if($?){
+            Write-Output "LabTech is now listed as '$Name' in Add/Remove Programs."
+        }
+        else {$Error[0]}
+    }#End End
+}#End Function Rename-LTAddRemove
 
 
 #endregion Functions
