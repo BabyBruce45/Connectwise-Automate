@@ -370,7 +370,8 @@ Function Uninstall-LTService{
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+          'Registry::HKEY_CLASSES_ROOT\LabTech'
 )
         $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
         $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
