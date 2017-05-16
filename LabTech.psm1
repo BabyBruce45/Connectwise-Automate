@@ -486,6 +486,7 @@ Function Install-LTService{
         [string]$Password,
         [Parameter(Mandatory=$True)]
         [int]$LocationID,
+        [string]$Rename,
         [switch]$Hide
 	    
     )   
@@ -572,6 +573,9 @@ Function Install-LTService{
         If((Get-LTServiceInfo).ID2 -lt 1 -or !(Get-LTServiceInfo).ID){
             Write-Host ""
             Write-Output "LabTech has been installed successfully. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
+            if($Rename){
+                Rename-LTAddRemove -Name $Rename
+            }
         }
         else {
             Write-Output "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log" 
@@ -632,7 +636,8 @@ Function Reinstall-LTService{
         [string]$Password = (Get-LTServiceInfo -ErrorAction SilentlyContinue).ServerPassword ,
         [string]$LocationID = (Get-LTServiceInfo -ErrorAction SilentlyContinue).LocationID,
         [switch]$Backup,
-        [switch]$Hide
+        [switch]$Hide,
+        [string]$Rename
     )
            
     Begin{
@@ -648,7 +653,13 @@ Function Reinstall-LTService{
         if (!$LocationID){
             $LocationID = Read-Host -Prompt 'Provide the LocationID'
         }
-        Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID"
+        if($Rename){
+            Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID -Rename $Rename"
+        }
+        else{
+            Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID"
+        }
+        
 
         $Server = ($Server.Split('|'))[0].trim()
     }#End Begin
@@ -660,7 +671,8 @@ Function Reinstall-LTService{
         Try{
             Uninstall-LTService -Server $Server
             Start-Sleep 10
-            Install-LTService -Server $Server -Password $Password -LocationID $LocationID -Hide:$Hide
+
+            Install-LTService -Server $Server -Password $Password -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
     
         Catch{
