@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     This is a PowerShell Module for LabTech.
     labtechconsulting.com
@@ -570,7 +570,7 @@ Function Install-LTService{
     }#End Process
   
     End{
-        If((Get-LTServiceInfo).ID2 -lt 1 -or !(Get-LTServiceInfo).ID){
+        If((Get-LTServiceInfo).ID -lt 1 -or !(Get-LTServiceInfo).ID){
             Write-Host ""
             Write-Output "LabTech has been installed successfully. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
             if($Rename){
@@ -632,9 +632,9 @@ Function Reinstall-LTService{
     http://labtechconsulting.com
 #> 
     Param(
-        [string]$Server = ((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|'))[0].trim() ,
-        [string]$Password = (Get-LTServiceInfo -ErrorAction SilentlyContinue).ServerPassword ,
-        [string]$LocationID = (Get-LTServiceInfo -ErrorAction SilentlyContinue).LocationID,
+        [string]$Server = ((Get-LTServiceInfo).'Server Address'.Split('|'))[0].trim(),
+        [string]$Password = (Get-LTServiceInfo).ServerPassword ,
+        [string]$LocationID = (Get-LTServiceInfo).LocationID,
         [switch]$Backup,
         [switch]$Hide,
         [string]$Rename
@@ -654,12 +654,9 @@ Function Reinstall-LTService{
             $LocationID = Read-Host -Prompt 'Provide the LocationID'
         }
         if($Rename){
-            Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID -Rename $Rename"
+            $Rename = "-Rename $Rename"
         }
-        else{
-            Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID"
-        }
-        
+        Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID $Rename"
 
         $Server = ($Server.Split('|'))[0].trim()
     }#End Begin
@@ -671,7 +668,6 @@ Function Reinstall-LTService{
         Try{
             Uninstall-LTService -Server $Server
             Start-Sleep 10
-
             Install-LTService -Server $Server -Password $Password -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
     
