@@ -85,7 +85,7 @@ Function Get-LTServiceInfo{
 Function Get-LTServiceSettings{ 
 <#
 .SYNOPSIS
-    This function will pull all of the registy data into an object.
+    This function will pull the registy data from HKLM:\SOFTWARE\LabTech\Service\Settings into an object.
 
 .NOTES
     Version:        1.0
@@ -101,7 +101,7 @@ Function Get-LTServiceSettings{
       
   Begin{
     Write-Verbose "Verbose: Checking for registry keys."
-    if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
+    if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\Settings') -eq $False){
         Write-Error "ERROR: Unable to find LTSvc settings. Make sure the service is running." -ErrorAction Stop
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
@@ -461,8 +461,11 @@ Function Install-LTService{
     This is the LocationID of the location that the agent will be put into.
     (Get-LTServiceInfo).LocationID
 
+.PARAMETER Rename
+    This will call Rename-LTAddRemove after the install.
+
 .PARAMETER Hide
-    This will call Hide-LTService after the install.
+    This will call Hide-LTAddRemove after the install.
 
 .EXAMPLE
     Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
@@ -598,11 +601,12 @@ Function Reinstall-LTService{
     example: https://lt.domain.com
     This is used to download the uninstallers.
     If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
+    If it is unable to find LT currently installed it will try Get-LTServiceInfoBackup
 
 .PARAMETER Password
     This is the Server Password to your LabTech server. 
     example: sRWyzEF0KaFzHTnyP56vgA==
-    You can find this from an configured agent with, '(Get-LTServiceInfo).ServerPassword'
+    You can find this from a configured agent with, '(Get-LTServiceInfo).ServerPassword'
     
 .PARAMETER LocationID
     The LocationID of the location that you want the agent in
@@ -613,6 +617,9 @@ Function Reinstall-LTService{
 
 .PARAMETER Hide
     Will remove from add-remove programs
+
+.PARAMETER Rename
+    This will call Rename-LTAddRemove to rename the install in Add/Remove Programs
 
 .EXAMPLE
     Uninstall-LTService 
@@ -774,6 +781,15 @@ Function Reset-LTService{
     Resetting all of these will force the agent to check in as a new agent.
     If you have MAC filtering enabled it should check back in with the same ID.
     This function is usefull for duplicate agents.
+
+.PARAMETER ID
+    This will reset the AgentID of the computer
+
+.PARAMETER Location
+    This will reset the LocationID of the computer
+
+.PARAMETER MAC
+    This will reset the MAC of the computer
 
 .EXAMPLE
     Reset-LTService
