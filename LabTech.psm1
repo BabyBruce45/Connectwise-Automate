@@ -554,10 +554,9 @@ Function Install-LTService{
         Try{
             Start-Process -Wait -FilePath msiexec -ArgumentList $iarg
             Write-Host -NoNewline "Waiting for agent to register." 
-            Start-Sleep 5
-            $timeout = new-timespan -Minutes 2
+            $timeout = new-timespan -Minutes 3
             $sw = [diagnostics.stopwatch]::StartNew()
-            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue).ID -lt 1 -or !(Get-LTServiceInfo).ID) -and $sw.elapsed -lt $timeout){
+            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue).ID -lt 1 -or !(Get-LTServiceInfo -ErrorAction SilentlyContinue).ID) -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -570,9 +569,10 @@ Function Install-LTService{
     }#End Process
   
     End{
-        If((Get-LTServiceInfo).ID -lt 1 -or !(Get-LTServiceInfo).ID){
+        If((Get-LTServiceInfo).ID -gt 1){
             Write-Host ""
             Write-Output "LabTech has been installed successfully. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
+            
             if($Rename){
                 Rename-LTAddRemove -Name $Rename
             }
@@ -632,15 +632,26 @@ Function Reinstall-LTService{
     http://labtechconsulting.com
 #> 
     Param(
-        [string]$Server = ((Get-LTServiceInfo).'Server Address'.Split('|'))[0].trim(),
-        [string]$Password = (Get-LTServiceInfo).ServerPassword ,
-        [string]$LocationID = (Get-LTServiceInfo).LocationID,
+        [string]$Server,
+        [string]$Password,
+        [string]$LocationID,
         [switch]$Backup,
         [switch]$Hide,
         [string]$Rename
     )
            
     Begin{
+        
+        # Gather install stats from registry or backed up settings
+        $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
+        if(!$Settings){
+            $Settings = Get-LTServiceInfoBackup -ErrorAction SilentlyContinue
+        }
+        if($Settings){
+            $Server = $Settings.'Server Address'
+            $Password = $Settings.ServerPassword
+            $LocationID = $Settings.LocationID
+        }
         if (!$Server){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
             if ($server -notlike 'http*://*'){
@@ -656,9 +667,10 @@ Function Reinstall-LTService{
         if($Rename){
             $Rename = "-Rename $Rename"
         }
-        Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID $Rename"
 
         $Server = ($Server.Split('|'))[0].trim()
+
+        Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID $Rename"
     }#End Begin
   
     Process{
