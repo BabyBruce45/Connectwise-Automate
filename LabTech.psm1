@@ -19,8 +19,8 @@
 #>
 
 #requires -version 3
-if (-not ($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
-if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality';return}
+if (!($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.'; return}
+if (!($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'; return}
 
 #Module Version
 $ModuleVersion = "1.0"
@@ -70,8 +70,13 @@ Function Get-LTServiceInfo{
   Process{
     Try{
         $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select * -exclude $exclude
-        if (-not ($key|Get-Member|Where {$_.Name -match 'BasePath'}) -and (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService)) {
-                Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop).ImagePath.Split('"')|Where {$_}|Select -First 1|Get-Item).DirectoryName
+        if (!($key|Get-Member|Where {$_.Name -match 'BasePath'})) {
+                if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
+                        $BasePath = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop).ImagePath.Split('"')|Where {$_}|Select -First 1|Get-Item).DirectoryName
+		} Else {
+                        $BasePath = "$env:windir\LTSVC" 
+		}
+		Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
         }
 
     }#End Try
@@ -251,7 +256,7 @@ Function Start-LTService{
         #Kill all processes that are using the tray port 
         [array]$process = @()
         $Port = (Get-LTServiceInfo).TrayPort
-        $netstat = netstat -a -o -n | Select-String $Port
+        $netstat = netstat.exe -a -o -n | Select-String $Port
         foreach ($line in $netstat){
             $process += ($line -split '  {3,}')[-1]
         }
@@ -266,13 +271,13 @@ Function Start-LTService{
   
     Process{
         Try{
-            Start-Service 'LTService','LTSvcMon'
-            Set-Service 'LTService' -StartupType Automatic
-            Set-Service 'LTSvcMon' -StartupType Automatic
+            @('LTService','LTSvcMon') | ForEach-Object {
+                        if (Get-Service $_ -ea 0) {Set-Service $_ -StartupType Automatic; Start-Service $_}
+            }
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error starting theLabTech services. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: There was an error starting the LabTech services. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
   
@@ -342,7 +347,7 @@ Function Uninstall-LTService{
         if($Backup){
             New-LTServiceBackup
         }
-        $Server = ($Server.Split('|'))[0].trim()
+        $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0)
         Write-Output "Starting uninstall."
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
@@ -378,15 +383,25 @@ Function Uninstall-LTService{
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
           'Registry::HKEY_CLASSES_ROOT\LabTech'
-)
-        $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
-        $installerTest = [System.Net.WebRequest]::Create($installer).GetResponse()
-        if ($installerTest.StatusCode -ne 200) {
+        )
+
+        $installer = "$($server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+        $installerTest = [System.Net.WebRequest]::Create($installer)
+        $installerTest.KeepAlive=$False
+        $installerTest.ProtocolVersion = '1.0'
+	$installerResult = $installerTest.GetResponse()
+	$installerTest.Abort()
+	if ($installerResult.StatusCode -ne 200) {
             Write-Error 'Unable to download Agent_Install from server.' -ErrorAction Stop
         }
-        $uninstaller = $server +'/Labtech/Deployment.aspx?probe=1&ID=-2'
-        $uninstallerTest = [System.Net.WebRequest]::Create($uninstaller).GetResponse()
-        if ($uninstallerTest.StatusCode -ne 200) {
+
+	$uninstaller = "$($server)/Labtech/Deployment.aspx?probe=1&ID=-2"
+        $uninstallerTest = [System.Net.WebRequest]::Create($uninstaller)
+        $uninstallerTest.KeepAlive=$False
+        $uninstallerTest.ProtocolVersion = '1.0'
+	$uninstallerResult = $uninstallerTest.GetResponse()
+	$uninstallerTest.Abort()
+	if ($uninstallerResult.StatusCode -ne 200) {
             Write-Error 'Unable to download Agent_Uninstall from server.' -ErrorAction Stop
         }
         $xarg = "/x $installer /qn"
@@ -402,18 +417,18 @@ Function Uninstall-LTService{
                 }
 
                 #Unregister DLL
-                regsvr32 /u $BasePath\wodVPN.dll /s            
+                regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
             }     
             
             #Cleanup previous uninstallers
             Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue
 
             #Run MSI uninstaller for current installer
-            Start-Process -Wait -FilePath msiexec -ArgumentList $xarg
+            Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
 
             #Download and run Agent_Uninstall.exe
-            $(New-Object Net.WebClient).DownloadFile($uninstaller,"$env:windir\temp\Agent_Uninstall.exe")
-            Start-Process "$env:windir\temp\Agent_Uninstall.exe" -Wait
+            $(New-Object Net.WebClient).DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
+            Start-Process "$($env:windir)\temp\Agent_Uninstall.exe" -Wait
             Start-Sleep -Seconds 10
 
             #Remove %ltsvcdir%
@@ -425,8 +440,9 @@ Function Uninstall-LTService{
             }
 
             #Remove Services
-            Start-Process -FilePath sc -ArgumentList "delete LTService" -Wait
-            Start-Process -FilePath sc -ArgumentList "delete LTSvcMon" -Wait
+            @('LTService','LTSvcMon') | ForEach-Object {
+                        if (Get-Service $_ -ea 0) {Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait}
+            }
 
         }#End Try
     
@@ -520,7 +536,7 @@ Function Install-LTService{
                 }
             }
             else{
-                $Result = Dism /online /get-featureinfo /featurename:NetFx3 
+                $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
                 If($Result -contains "State : Enabled"){ 
                     Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                 } 
@@ -540,8 +556,12 @@ Function Install-LTService{
                 Write-Error 'Server address is not formatted correctly. Example: http://labtech.labtechconsulting.com' -ErrorAction Stop
             }
             $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
-            $installerTest = [System.Net.WebRequest]::Create($installer).GetResponse()
-            if ($installerTest.StatusCode -ne 200) {
+            $installerTest = [System.Net.WebRequest]::Create($installer)
+            $installerTest.KeepAlive=$False
+            $installerTest.ProtocolVersion = '1.0'
+	    $installerResult = $installerTest.GetResponse()
+            $installerTest.Abort()
+            if ($installerResult.StatusCode -ne 200) {
                 Write-Error 'Unable to download Agent_Install from server.' -ErrorAction Stop
             }
             else{
@@ -561,7 +581,7 @@ Function Install-LTService{
   
     Process{
         Try{
-            Start-Process -Wait -FilePath msiexec -ArgumentList $iarg
+            Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
             Write-Host -NoNewline "Waiting for agent to register." 
             $timeout = new-timespan -Minutes 3
             $sw = [diagnostics.stopwatch]::StartNew()
@@ -681,7 +701,7 @@ Function Reinstall-LTService{
             $Rename = "-Rename $Rename"
         }
 
-        $Server = ($Server.Split('|'))[0].trim()
+        $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0)
 
         Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID $Rename"
     }#End Begin
@@ -863,7 +883,7 @@ Function Reset-LTService{
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error durring the reset process. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: There was an error during the reset process. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
   
@@ -977,7 +997,7 @@ Function Show-LTAddRemove{
 "ProductName"="LabTech® Software Remote Agent"
 '@
                     $RegImport | Out-File "$env:TEMP\LT.reg" -Force
-                    Start-Process -Wait -FilePath reg -ArgumentList "import $($env:TEMP)\LT.reg"
+                    Start-Process -Wait -FilePath reg.exe -ArgumentList "import $($env:TEMP)\LT.reg"
                     Remove-Item "$env:TEMP\LT.reg" -Force
                     New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
                     New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
@@ -1076,7 +1096,7 @@ Function Test-LTPorts{
         }
         Try{
             #Get all processes that are using port 42000
-            $netstat = netstat -a -o -n | Select-String 42000
+            $netstat = netstat.exe -a -o -n | Select-String 42000
             foreach ($line in $netstat) {
                 $process += ($line -split '  {3,}')[-1]
             }
