@@ -508,7 +508,7 @@ Function Install-LTService{
 
             if($OSVersion -gt 6.2){
                 try{
-                    Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All | Out-Null
+                    Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All | Out-Null
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
@@ -747,10 +747,10 @@ Function Get-LTError{
             foreach($Line in $Errors){
                 $items = $Line -split "`t" -replace ' - ',''
                 if($items[1]){
-                    $object = New-Object –TypeName PSObject
-                    $object | Add-Member –MemberType NoteProperty –Name ServiceVersion –Value $items[0]
-                    $object | Add-Member –MemberType NoteProperty –Name Timestamp –Value $([datetime]$items[1])
-                    $object | Add-Member –MemberType NoteProperty –Name Message –Value $items[2]
+                    $object = New-Object -TypeName PSObject
+                    $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
+                    $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $([datetime]$items[1])
+                    $object | Add-Member -MemberType NoteProperty -Name Message -Value $items[2]
                     Write-Output $object
                 }
             }
@@ -1250,10 +1250,10 @@ Function Get-LTProbeErrors {
         $errors = $errors -join ' ' -split ':::'
         foreach($Line in $Errors){
             $items = $Line -split "`t" -replace ' - ',''
-            $object = New-Object –TypeName PSObject
-            $object | Add-Member –MemberType NoteProperty –Name ServiceVersion –Value $items[0]
-            $object | Add-Member –MemberType NoteProperty –Name Timestamp –Value $([datetime]$items[1])
-            $object | Add-Member –MemberType NoteProperty –Name Message –Value $items[2]
+            $object = New-Object -TypeName PSObject
+            $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
+            $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $([datetime]$items[1])
+            $object | Add-Member -MemberType NoteProperty -Name Message -Value $items[2]
             Write-Output $object
         }
     }
