@@ -1057,11 +1057,11 @@ Function Test-LTPorts{
         }
         Finally
         {
-            $test.Dispose();
+            $test.Close();
         }
 
     }#End Function TestPort
-        $Servers = (((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|')) -replace("(http|https)://",'')).trim()
+        $Servers = (((Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -ExpandProperty 'Server Address').Split('|')) -replace("(http|https)://",'')|Foreach {$_.Trim()})
         [array]$process = @()
     }#End Begin
   
