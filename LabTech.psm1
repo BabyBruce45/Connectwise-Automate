@@ -69,7 +69,11 @@ Function Get-LTServiceInfo{
   
   Process{
     Try{
-        Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select * -exclude $exclude
+        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select * -exclude $exclude
+        if (-not ($key|Get-Member|Where {$_.Name -match 'BasePath'}) -and (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService)) {
+                Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop).ImagePath.Split('"')|Where {$_}|Select -First 1|Get-Item).DirectoryName
+        }
+
     }#End Try
     
     Catch{
@@ -111,7 +115,7 @@ Function Get-LTServiceSettings{
   
   Process{
     Try{
-        Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -ErrorAction Stop | Select * -exclude $exclude
+        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -ErrorAction Stop | Select * -exclude $exclude
     }#End Try
     
     Catch{
@@ -376,12 +380,12 @@ Function Uninstall-LTService{
           'Registry::HKEY_CLASSES_ROOT\LabTech'
 )
         $installer = $server + '/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1'
-        $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
+        $installerTest = [System.Net.WebRequest]::Create($installer).GetResponse()
         if ($installerTest.StatusCode -ne 200) {
             Write-Error 'Unable to download Agent_Install from server.' -ErrorAction Stop
         }
         $uninstaller = $server +'/Labtech/Deployment.aspx?probe=1&ID=-2'
-        $uninstallerTest = invoke-webrequest $uninstaller -DisableKeepAlive -UseBasicParsing -Method head
+        $uninstallerTest = [System.Net.WebRequest]::Create($uninstaller).GetResponse()
         if ($uninstallerTest.StatusCode -ne 200) {
             Write-Error 'Unable to download Agent_Uninstall from server.' -ErrorAction Stop
         }
@@ -392,7 +396,7 @@ Function Uninstall-LTService{
         Try{
             #Kill all running processes from %ltsvcdir%   
             if(Test-Path $BasePath){
-                $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue).Name.Trim('.exe')
+                $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -exp Name|Foreach {$_.Trim('.exe')})
                 ForEach($Item in $Executables){
                     Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
                 }
@@ -408,7 +412,7 @@ Function Uninstall-LTService{
             Start-Process -Wait -FilePath msiexec -ArgumentList $xarg
 
             #Download and run Agent_Uninstall.exe
-            Invoke-RestMethod -Uri $uninstaller -OutFile "$env:windir\temp\Agent_Uninstall.exe"
+            $(New-Object Net.WebClient).DownloadFile($uninstaller,"$env:windir\temp\Agent_Uninstall.exe")
             Start-Process "$env:windir\temp\Agent_Uninstall.exe" -Wait
             Start-Sleep -Seconds 10
 
@@ -536,13 +540,13 @@ Function Install-LTService{
                 Write-Error 'Server address is not formatted correctly. Example: http://labtech.labtechconsulting.com' -ErrorAction Stop
             }
             $installer = "$($Server)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
-            $installerTest = invoke-webrequest $installer -DisableKeepAlive -UseBasicParsing -Method head
+            $installerTest = [System.Net.WebRequest]::Create($installer).GetResponse()
             if ($installerTest.StatusCode -ne 200) {
                 Write-Error 'Unable to download Agent_Install from server.' -ErrorAction Stop
             }
             else{
                 New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
-                Invoke-RestMethod -Uri $installer -OutFile $env:windir\temp\LabTech\Installer\Agent_Install.msi
+                $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
             }
 
             $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$Server SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
@@ -657,9 +661,9 @@ Function Reinstall-LTService{
             $Settings = Get-LTServiceInfoBackup -ErrorAction SilentlyContinue
         }
         if($Settings){
-            $Server = $Settings.'Server Address'
-            $Password = $Settings.ServerPassword
-            $LocationID = $Settings.LocationID
+            $Server = $Settings|Select-object -Exp 'Server Address'
+            $Password = $Settings|Select-object -Exp ServerPassword
+            $LocationID = $Settings|Select-object -Exp LocationID
         }
         if (!$Server){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
@@ -1283,11 +1287,11 @@ Function New-LTServiceBackup {
     $BackupPath = "$((Get-LTServiceInfo).BasePath)Backup"
     $Keys = 'HKLM\SOFTWARE\LabTech'
     $Path = "$BackupPath\LTBackup.reg"
-    reg export $Keys $Path /y
+    $Result = reg.exe export $Keys $Path /y 2>''
     $Reg = Get-Content $Path
     $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
     $Reg | Out-File $Path
-    reg import $Path
+    $Result = reg.exe import $Path 2>''
     Copy-Item $(Get-LTServiceInfo).BasePath "$((Get-LTServiceInfo).BasePath)Backup" -Recurse -Force    
 }#End Function New-LTServiceBackup
 
@@ -1319,7 +1323,7 @@ Function Get-LTServiceInfoBackup {
   
   Process{
     Try{
-        Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select * -exclude $exclude
+        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select * -exclude $exclude
     }#End Try
     
     Catch{
