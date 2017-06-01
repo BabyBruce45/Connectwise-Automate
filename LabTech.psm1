@@ -1162,7 +1162,7 @@ Function Get-LTLogging{
 Function Set-LTLogging{ 
 <#
 .SYNOPSIS
-    This function will pull all of the registy data into an object.
+        This function will set the logging level of the LabTech service.
 
 .NOTES
     Version:        1.0
