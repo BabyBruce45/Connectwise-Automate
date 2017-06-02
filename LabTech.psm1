@@ -19,6 +19,8 @@
 #>
 
 #requires -version 3
+if (-not ($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
+if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality';return}
 
 #Module Version
 $ModuleVersion = "1.0"
@@ -1055,11 +1057,11 @@ Function Test-LTPorts{
         }
         Finally
         {
-            $test.Dispose();
+            $test.Close();
         }
 
     }#End Function TestPort
-        $Servers = (((Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address'.Split('|')) -replace("(http|https)://",'')).trim()
+        $Servers = (((Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -ExpandProperty 'Server Address').Split('|')) -replace("(http|https)://",'')|Foreach {$_.Trim()})
         [array]$process = @()
     }#End Begin
   
