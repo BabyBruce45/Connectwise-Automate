@@ -260,12 +260,10 @@ Function Start-LTService{
         foreach ($line in $netstat){
             $process += ($line -split '  {3,}')[-1]
         }
-        $process = $process | Sort-Object | Get-Unique
+        $process = $process | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
         foreach ($proc in $process){
-            if ($proc -ne 0) {
-                Write-Output "Process ID:$proc is using port $Port. Killing process."
-                Stop-Process -ID $proc -Force -Verbose
-            }
+            Write-Output "Process ID:$proc is using port $Port. Killing process."
+            Stop-Process -ID $proc -Force -Verbose
         }
     }#End Begin
   
@@ -1097,17 +1095,17 @@ Function Test-LTPorts{
         }
         Try{
             #Get all processes that are using port 42000
+            [array]$process = @()
             $netstat = netstat.exe -a -o -n | Select-String 42000
             foreach ($line in $netstat) {
                 $process += ($line -split '  {3,}')[-1]
             }
-            $process = $process | Get-Unique;
+            $process = $process | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             foreach ($proc in $process) {
-                if ((Get-Process -id $proc).ProcessName -eq 'LTSvc') {
+                if ((Get-Process -ID $proc -EA 0).ProcessName -eq 'LTSvc') {
                     Write-Output "LTSvc is using port 42000"
-                }
-                else {
-                    Write-Output "Error: $((Get-Process -id $proc).ProcessName) is using port 42000"
+                } else {
+                    Write-Output "Error: $((Get-Process -ID $proc).ProcessName) is using port 42000"
                 }
             }
     
