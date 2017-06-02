@@ -19,8 +19,8 @@
 #>
 
 #requires -version 3
-if (!($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.'; return}
-if (!($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'; return}
+if (-not ($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.'; return}
+if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'; return}
 
 #Module Version
 $ModuleVersion = "1.0"
@@ -70,7 +70,7 @@ Function Get-LTServiceInfo{
   Process{
     Try{
         $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select * -exclude $exclude
-        if (!($key|Get-Member|Where {$_.Name -match 'BasePath'})) {
+        if (-not ($key|Get-Member|Where {$_.Name -match 'BasePath'})) {
                 if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
                         $BasePath = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop).ImagePath.Split('"')|Where {$_}|Select -First 1|Get-Item).DirectoryName
 		} Else {
@@ -154,7 +154,7 @@ Function Restart-LTService{
     Param()
   
   Begin{
-    if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
         Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
     }
   }#End Begin
@@ -198,7 +198,7 @@ Function Stop-LTService{
     Param()
   
   Begin{
-    if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
         Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
     }
   }#End Begin
@@ -250,7 +250,7 @@ Function Start-LTService{
     Param()   
    
     Begin{
-        if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+        if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
         }
         #Kill all processes that are using the tray port 
@@ -335,10 +335,10 @@ Function Uninstall-LTService{
         [switch]$Backup
     )   
     Begin{
-        If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
+        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Throw "Needs to be ran as Administrator" 
         }
-        if (!$Server){
+        if (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://labtech.labtechconsulting.com)'
             if ($server -notlike 'http*://*'){
                 Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
@@ -350,7 +350,7 @@ Function Uninstall-LTService{
         $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0)
         Write-Output "Starting uninstall."
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
-        if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
+        if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
           'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech\Service',
@@ -516,12 +516,12 @@ Function Install-LTService{
 	    
     )   
     Begin{
-        If (!([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
+        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
         }
         
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
-        if(!($DotNet -like '3.5.*')){
+        if(-not ($DotNet -like '3.5.*')){
             Write-Output ".NET 3.5 Needs installing."
             #Install-WindowsFeature Net-Framework-Core
             $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem).version
@@ -585,7 +585,7 @@ Function Install-LTService{
             Write-Host -NoNewline "Waiting for agent to register." 
             $timeout = new-timespan -Minutes 3
             $sw = [diagnostics.stopwatch]::StartNew()
-            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue).ID -lt 1 -or !(Get-LTServiceInfo -ErrorAction SilentlyContinue).ID) -and $sw.elapsed -lt $timeout){
+            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue).ID -lt 1 -or -not (Get-LTServiceInfo -ErrorAction SilentlyContinue).ID) -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -677,7 +677,7 @@ Function Reinstall-LTService{
         
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
-        if(!$Settings){
+        if(-not ($Settings)){
             $Settings = Get-LTServiceInfoBackup -ErrorAction SilentlyContinue
         }
         if($Settings){
@@ -685,16 +685,16 @@ Function Reinstall-LTService{
             $Password = $Settings|Select-object -Exp ServerPassword
             $LocationID = $Settings|Select-object -Exp LocationID
         }
-        if (!$Server){
+        if (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
             if ($server -notlike 'http*://*'){
                 Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
             }
         }
-        if (!$Password){
+        if (-not ($Password)){
             $Password = Read-Host -Prompt 'Provide the server password:'
         }
-        if (!$LocationID){
+        if (-not ($LocationID)){
             $LocationID = Read-Host -Prompt 'Provide the LocationID'
         }
         if($Rename){
@@ -758,7 +758,7 @@ Function Get-LTError{
     
     Begin{
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
-        if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
+        if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
         }
@@ -844,11 +844,11 @@ Function Reset-LTService{
     )   
     
     Begin{
-        if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+        if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: LabTech Services NOT Found" $($Error[0]) -ErrorAction Stop
         }
         $Reg = 'HKLM:\Software\LabTech\Service'
-        if (!($ID -or $LocationID -or $MAC)){
+        if (-not ($ID -or $LocationID -or $MAC)){
             $ID=$true
             $Location=$true
             $MAC=$true
@@ -875,7 +875,7 @@ Function Reset-LTService{
             Start-LTService
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
-            While (!(Get-LTServiceInfo).ID -or !(Get-LTServiceInfo).LocationID -or !(Get-LTServiceInfo).MAC -and $sw.elapsed -lt $timeout){
+            While (-not (Get-LTServiceInfo).ID -or -not (Get-LTServiceInfo).LocationID -or -not (Get-LTServiceInfo).MAC -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -1127,7 +1127,7 @@ Function Test-LTPorts{
   
       End{
         If($?){
-            if(!$Quiet){
+            if(-not ($Quiet)){
                 Write-Output "Finished"
             }          
         }
@@ -1264,7 +1264,7 @@ Function Get-LTProbeErrors {
     
     Begin{
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
-        if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
+        if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
         }
