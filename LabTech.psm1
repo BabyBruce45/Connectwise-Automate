@@ -255,7 +255,7 @@ Function Start-LTService{
         }
         #Kill all processes that are using the tray port 
         [array]$process = @()
-        $Port = (Get-LTServiceInfo).TrayPort
+        $Port = (Get-LTServiceInfo|Select-Object -Expand TrayPort)
         $netstat = netstat.exe -a -o -n | Select-String $Port
         foreach ($line in $netstat){
             $process += ($line -split '  {3,}')[-1]
@@ -331,7 +331,7 @@ Function Uninstall-LTService{
     [CmdletBinding()]
     Param(
         [Parameter()]
-        [string]$Server = (Get-LTServiceInfo -ErrorAction SilentlyContinue).'Server Address',
+        [string]$Server = (Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand 'Server Address'),
         [switch]$Backup
     )   
     Begin{
@@ -349,7 +349,7 @@ Function Uninstall-LTService{
         }
         $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0)
         Write-Output "Starting uninstall."
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand BasePath)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
@@ -473,15 +473,15 @@ Function Install-LTService{
     This is the URL to your LabTech server. 
     example: https://lt.domain.com
     This is used to download the uninstallers.
-    (Get-LTServiceInfo).'Server Address'
+    (Get-LTServiceInfo|Select-Object -Expand 'Server Address')
 
 .PARAMETER Password
     This is the server password that agents use to authenticate with the LabTech server.
-    (Get-LTServiceInfo).ServerPassword
+    (Get-LTServiceInfo|Select-Object -Expand ServerPassword)
 
 .PARAMETER LocationID
     This is the LocationID of the location that the agent will be put into.
-    (Get-LTServiceInfo).LocationID
+    (Get-LTServiceInfo|Select-Object -Expand LocationID)
 
 .PARAMETER Rename
     This will call Rename-LTAddRemove after the install.
@@ -585,7 +585,7 @@ Function Install-LTService{
             Write-Host -NoNewline "Waiting for agent to register." 
             $timeout = new-timespan -Minutes 3
             $sw = [diagnostics.stopwatch]::StartNew()
-            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue).ID -lt 1 -or -not (Get-LTServiceInfo -ErrorAction SilentlyContinue).ID) -and $sw.elapsed -lt $timeout){
+            while (((Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand ID) -lt 1 -or -not (Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand ID) -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -598,9 +598,10 @@ Function Install-LTService{
     }#End Process
   
     End{
-        If((Get-LTServiceInfo).ID -gt 1){
+        $tmpLTSI = Get-LTServiceInfo
+	If(($tmpLTSI|Select-Object -Expand ID) -gt 1){
             Write-Host ""
-            Write-Output "LabTech has been installed successfully. Agent ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID)"
+            Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand ID) LocationID: $($tmpLTSI|Select-Object -Expand LocationID)"
             
             if($Rename){
                 Rename-LTAddRemove -Name $Rename
@@ -757,7 +758,7 @@ Function Get-LTError{
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand BasePath)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
@@ -853,7 +854,7 @@ Function Reset-LTService{
             $Location=$true
             $MAC=$true
         }
-        Write-Output "OLD ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID) MAC: $((Get-LTServiceInfo).MAC)"
+        Write-Output "OLD ID: $(Get-LTServiceInfo|Select-Object -Expand ID) LocationID: $(Get-LTServiceInfo|Select-Object -Expand LocationID) MAC: $(Get-LTServiceInfo|Select-Object -Expand MAC)"
         
     }#End Begin
   
@@ -875,7 +876,7 @@ Function Reset-LTService{
             Start-LTService
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
-            While (-not (Get-LTServiceInfo).ID -or -not (Get-LTServiceInfo).LocationID -or -not (Get-LTServiceInfo).MAC -and $sw.elapsed -lt $timeout){
+            While (-not (Get-LTServiceInfo|Select-Object -Expand ID) -or -not (Get-LTServiceInfo|Select-Object -Expand LocationID) -or -not (Get-LTServiceInfo|Select-Object -Expand MAC) -and $sw.elapsed -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -890,7 +891,7 @@ Function Reset-LTService{
     End{
         if ($?){
             Write-Output ""
-            Write-Output "NEW ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID) MAC: $((Get-LTServiceInfo).MAC)"
+            Write-Output "NEW ID: $(Get-LTServiceInfo|Select-Object -Expand ID) LocationID: $(Get-LTServiceInfo|Select-Object -Expand LocationID) MAC: $(Get-LTServiceInfo|Select-Object -Expand MAC)"
         }
         Else {$Error[0]}
     }#End End
@@ -999,8 +1000,8 @@ Function Show-LTAddRemove{
                     $RegImport | Out-File "$env:TEMP\LT.reg" -Force
                     Start-Process -Wait -FilePath reg.exe -ArgumentList "import $($env:TEMP)\LT.reg"
                     Remove-Item "$env:TEMP\LT.reg" -Force
-                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
-                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$((Get-LTServiceInfo|Select-Object -Expand 'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$((Get-LTServiceInfo|Select-Object -Expand 'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
                 }
             }
         }#End Try
@@ -1179,7 +1180,7 @@ Function Get-LTLogging{
             Write-Output "Current logging level: Verbose"
         }
         else{
-            Write-Error "ERROR: Unknown Logging level $((Get-LTServiceInfo).Debuging)" -ErrorAction Stop
+            Write-Error "ERROR: Unknown Logging level $(Get-LTServiceInfo|Select-Object -Expand Debuging)" -ErrorAction Stop
         }
     }    
   }#End End
@@ -1263,7 +1264,7 @@ Function Get-LTProbeErrors {
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand BasePath)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
@@ -1293,7 +1294,7 @@ Function New-LTServiceBackup {
 <#
 .SYNOPSIS
     This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTechBackup'
-    This will also backup those files to "$((Get-LTServiceInfo).BasePath)Backup"
+    This will also backup those files to "$(Get-LTServiceInfo|Select-Object -Expand BasePath)Backup"
 
 .NOTES
     Version:        1.0
@@ -1304,7 +1305,7 @@ Function New-LTServiceBackup {
 .LINK
     http://labtechconsulting.com
 #> 
-    $BackupPath = "$((Get-LTServiceInfo).BasePath)Backup"
+    $BackupPath = "$(Get-LTServiceInfo|Select-Object -Expand BasePath)Backup"
     $Keys = 'HKLM\SOFTWARE\LabTech'
     $Path = "$BackupPath\LTBackup.reg"
     $Result = reg.exe export $Keys $Path /y 2>''
@@ -1312,7 +1313,7 @@ Function New-LTServiceBackup {
     $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
     $Reg | Out-File $Path
     $Result = reg.exe import $Path 2>''
-    Copy-Item $(Get-LTServiceInfo).BasePath "$((Get-LTServiceInfo).BasePath)Backup" -Recurse -Force    
+    Copy-Item "$(Get-LTServiceInfo|Select-Object -Expand BasePath)" "$(Get-LTServiceInfo|Select-Object -Expand BasePath)Backup" -Recurse -Force    
 }#End Function New-LTServiceBackup
 
 Function Get-LTServiceInfoBackup { 
