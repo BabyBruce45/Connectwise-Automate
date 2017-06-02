@@ -1326,12 +1326,12 @@ Function New-LTServiceBackup {
     $BackupPath = "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup"
     $Keys = 'HKLM\SOFTWARE\LabTech'
     $Path = "$BackupPath\LTBackup.reg"
+    Copy-Item "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)" "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup" -Recurse -Force    
     $Result = reg.exe export $Keys $Path /y 2>''
     $Reg = Get-Content $Path
     $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
     $Reg | Out-File $Path
     $Result = reg.exe import $Path 2>''
-    Copy-Item "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)" "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup" -Recurse -Force    
 }#End Function New-LTServiceBackup
 
 Function Get-LTServiceInfoBackup { 
