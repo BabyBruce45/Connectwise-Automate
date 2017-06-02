@@ -79,7 +79,7 @@ Function Get-LTServiceInfo{
 		}
 		Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
         }
-
+	$key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath)
     }#End Try
     
     Catch{
