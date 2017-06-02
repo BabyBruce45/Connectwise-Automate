@@ -59,6 +59,7 @@ Function Get-LTServiceInfo{
     Param ()
       
   Begin{
+    Remove-Variable key,BasePath,exclude -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
         Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
@@ -111,6 +112,7 @@ Function Get-LTServiceSettings{
     Param ()
       
   Begin{
+    Remove-Variable key,exclude -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\Settings') -eq $False){
         Write-Error "ERROR: Unable to find LTSvc settings. Make sure the service is running." -ErrorAction Stop
@@ -250,20 +252,23 @@ Function Start-LTService{
     Param()   
    
     Begin{
+    	Remove-Variable Port,proc,processes,netstat,line -EA 0 #Clearing Variables for use
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
         }
         #Kill all processes that are using the tray port 
-        [array]$process = @()
+        [array]$processes = @()
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
         $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
         foreach ($line in $netstat){
-            $process += ($line -split '  {3,}')[-1]
+            $processes += ($line -split '  {3,}')[-1]
         }
-        $process = $process | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-        foreach ($proc in $process){
-            Write-Output "Process ID:$proc is using port $Port. Killing process."
-            Stop-Process -ID $proc -Force -Verbose
+        $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
+        if ($processes) {
+	    foreach ($proc in $processes){
+                Write-Output "Process ID:$proc is using port $Port. Killing process."
+                Stop-Process -ID $proc -Force -Verbose
+	    }
         }
     }#End Begin
   
@@ -333,6 +338,7 @@ Function Uninstall-LTService{
         [switch]$Backup
     )   
     Begin{
+    	Remove-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Item -EA 0 #Clearing Variables for use
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Throw "Needs to be ran as Administrator" 
         }
@@ -410,9 +416,11 @@ Function Uninstall-LTService{
             #Kill all running processes from %ltsvcdir%   
             if(Test-Path $BasePath){
                 $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
-                ForEach($Item in $Executables){
-                    Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
-                }
+                if ($Executables) {
+			ForEach($Item in $Executables){
+			    Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
+			}
+		}
 
                 #Unregister DLL
                 regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
@@ -514,6 +522,7 @@ Function Install-LTService{
 	    
     )   
     Begin{
+    	Remove-Variable DotNET,OSVersion,Result,installer,installerTest,installerResult,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
         }
@@ -526,7 +535,7 @@ Function Install-LTService{
 
             if($OSVersion -gt 6.2){
                 try{
-                    Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All | Out-Null
+                    $Result = Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
@@ -673,7 +682,7 @@ Function Reinstall-LTService{
     )
            
     Begin{
-        
+    	Remove-Variable Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
         if(-not ($Settings)){
@@ -756,6 +765,7 @@ Function Get-LTError{
     Param()
     
     Begin{
+    	Remove-Variable BasePath,Errors,Line,items,object -EA 0 #Clearing Variables for use
         $BasePath = $(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
@@ -765,8 +775,8 @@ Function Get-LTError{
   
     Process{
         Try{
-            $errors = Get-Content "$BasePath\LTErrors.txt"
-            $errors = $errors -join ' ' -split ':::'
+            $Errors = Get-Content "$BasePath\LTErrors.txt"
+            $Errors = $Errors -join ' ' -split ':::'
             foreach($Line in $Errors){
                 $items = $Line -split "`t" -replace ' - ',''
                 if($items[1]){
@@ -843,11 +853,12 @@ Function Reset-LTService{
     )   
     
     Begin{
+    	Remove-Variable Reg,timeout,sw -EA 0 #Clearing Variables for use
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: LabTech Services NOT Found" $($Error[0]) -ErrorAction Stop
         }
         $Reg = 'HKLM:\Software\LabTech\Service'
-        if (-not ($ID -or $LocationID -or $MAC)){
+        if (-not (($ID) -or ($LocationID) -or ($MAC))){
             $ID=$true
             $Location=$true
             $MAC=$true
@@ -916,6 +927,7 @@ Function Hide-LTAddRemove{
     Param()
 
     Begin{
+    	Remove-Variable RegRoot,RegRoots -EA 0 #Clearing Variables for use
         $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F','HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
         foreach($RegRoot in $RegRoots){
             if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue) {
@@ -970,6 +982,7 @@ Function Show-LTAddRemove{
     Param()
 
     Begin{
+    	Remove-Variable RegRoot,RegRoots,RegImport -EA 0 #Clearing Variables for use
         $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
     }#End Begin
   
@@ -1063,7 +1076,8 @@ Function Test-LTPorts{
             $Port
 
             )
-
+	
+	Remove-Variable RemoteServer,test -EA 0 #Clearing Variables for use
         $RemoteServer = If ([string]::IsNullOrEmpty($ComputerName)) {$IPAddress} Else {$ComputerName};
     
         $test = New-Object System.Net.Sockets.TcpClient;
@@ -1084,8 +1098,9 @@ Function Test-LTPorts{
         }
 
     }#End Function TestPort
+
+    	Remove-Variable server,servers,proc,processes,netstat,line -EA 0 #Clearing Variables for use
         $Servers = (((Get-LTServiceInfo -EA 0|Select-object -ExpandProperty 'Server Address' -EA 0).Split('|')) -replace("(http|https)://",'')|Foreach {$_.Trim()})
-        [array]$process = @()
     }#End Begin
   
       Process{
@@ -1095,18 +1110,20 @@ Function Test-LTPorts{
         }
         Try{
             #Get all processes that are using port 42000
-            [array]$process = @()
+            [array]$processes = @()
             $netstat = netstat.exe -a -o -n | Select-String 42000
             foreach ($line in $netstat) {
-                $process += ($line -split '  {3,}')[-1]
+                $processes += ($line -split '  {3,}')[-1]
             }
-            $process = $process | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-            foreach ($proc in $process) {
-                if ((Get-Process -ID $proc -EA 0).ProcessName -eq 'LTSvc') {
-                    Write-Output "LTSvc is using port 42000"
-                } else {
-                    Write-Output "Error: $((Get-Process -ID $proc).ProcessName) is using port 42000"
-                }
+            $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
+            if ($processes) {
+		    foreach ($proc in $processes) {
+			if ((Get-Process -ID $proc -EA 0).ProcessName -eq 'LTSvc') {
+			    Write-Output "LTSvc is using port 42000"
+			} else {
+			    Write-Output "Error: $((Get-Process -ID $proc).ProcessName) is using port 42000"
+			}
+	  	     }
             }
     
             foreach ($Server in $Servers) {
@@ -1153,6 +1170,7 @@ Function Get-LTLogging{
     Param ()
       
   Begin{
+    Remove-Variable value -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\settings') -eq $False){
         Write-Error "ERROR: Unable to find logging settings for LTSvc. Make sure the service is running." -ErrorAction Stop
@@ -1262,6 +1280,7 @@ Function Get-LTProbeErrors {
     Param()
     
     Begin{
+    	Remove-Variable BasePath,errors,line,items,object -EA 0 #Clearing Variables for use
         $BasePath = $(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
@@ -1303,6 +1322,7 @@ Function New-LTServiceBackup {
 .LINK
     http://labtechconsulting.com
 #> 
+    Remove-Variable BackupPath,Keys,Path,Result,Reg,Path -EA 0 #Clearing Variables for use
     $BackupPath = "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup"
     $Keys = 'HKLM\SOFTWARE\LabTech'
     $Path = "$BackupPath\LTBackup.reg"
@@ -1332,6 +1352,7 @@ Function Get-LTServiceInfoBackup {
     Param ()
       
   Begin{
+    Remove-Variable key -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
         Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
@@ -1381,6 +1402,7 @@ Function Rename-LTAddRemove{
     )
 
     Begin{
+    	Remove-Variable RegRoot -EA 0 #Clearing Variables for use
         $RegRoot = 'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'       
     }#End Begin
   
