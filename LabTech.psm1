@@ -192,7 +192,7 @@ Function Restart-LTService{
   }#End Process
   
   End{
-    If($?){Write-Output "Services Restarted successfully."}
+    If ($?){Write-Output "Services Restarted successfully."}
     Else {$Error[0]}
   }#End End
 }#End Function Restart-LTService
@@ -240,7 +240,7 @@ Function Stop-LTService{
   }#End Process
   
   End{
-    If($?){
+    If ($?){
         Write-Output "Services Stopped successfully."
     }
     Else {$Error[0]}
@@ -313,7 +313,7 @@ Function Start-LTService{
   
     End
     {
-        If($?){
+        If ($?){
             Write-Output "Services Started successfully."
         }
         else{
@@ -379,7 +379,7 @@ Function Uninstall-LTService{
                 Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
             }        
         }
-        if($Backup){
+        if ($Backup){
             New-LTServiceBackup
         }
         $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0 -EA 0)
@@ -445,7 +445,7 @@ Function Uninstall-LTService{
     Process{
         Try{
             #Kill all running processes from %ltsvcdir%   
-            if(Test-Path $BasePath){
+            if (Test-Path $BasePath){
                 $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
                 if ($Executables) {
 			ForEach($Item in $Executables){
@@ -489,7 +489,7 @@ Function Uninstall-LTService{
     }#End Process
   
     End{
-        If($?){
+        If ($?){
             Write-Output "LabTech has been successfully uninstalled."
         }
         else {
@@ -563,12 +563,12 @@ Function Install-LTService{
         }
         
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
-        if(-not ($DotNet -like '3.5.*')){
+        if (-not ($DotNet -like '3.5.*')){
             Write-Output ".NET 3.5 installation needed."
             #Install-WindowsFeature Net-Framework-Core
             $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem).version
 
-            if($OSVersion -gt 6.2){
+            if ($OSVersion -gt 6.2){
                 try{
                     $Result = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
                 }
@@ -579,7 +579,7 @@ Function Install-LTService{
             }
             else{
                 $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
-                If($Result -contains "State : Enabled"){ 
+                If ($Result -contains "State : Enabled"){ 
                     Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                 } 
                 Else{
@@ -589,7 +589,7 @@ Function Install-LTService{
             
             $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where-Object{ $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
         }
-        if($DotNet -like '3.5.*'){
+        if ($DotNet -like '3.5.*'){
             if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
                 Write-Error "LabTech is already installed." -ErrorAction Stop
             }
@@ -641,11 +641,11 @@ Function Install-LTService{
   
     End{
         $tmpLTSI = Get-LTServiceInfo -EA 0
-	If(($tmpLTSI|Select-Object -Expand ID -EA 0) -gt 1){
+        If (($tmpLTSI|Select-Object -Expand ID -EA 0) -gt 1){
             Write-Host ""
             Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand ID -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand LocationID -EA 0)"
             
-            if($Rename){
+            if ($Rename){
                 Rename-LTAddRemove -Name $Rename
             }
         }
@@ -699,7 +699,7 @@ Function Reinstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -707,6 +707,9 @@ Function Reinstall-LTService{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
+    Update Date: 6/8/2017
+    Purpose/Change: Update to support user provided settings for -Server, -Password, -LocationID.
     
 .LINK
     http://labtechconsulting.com
@@ -724,37 +727,46 @@ Function Reinstall-LTService{
     	Remove-Variable Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
-        if(-not ($Settings)){
+        if (-not ($Settings)){
             $Settings = Get-LTServiceInfoBackup -ErrorAction SilentlyContinue
         }
-        if($Settings){
-            $Server = $Settings|Select-object -Expand 'Server Address' -EA 0
-            $Password = $Settings|Select-object -Expand ServerPassword -EA 0
-            $LocationID = $Settings|Select-object -Expand LocationID -EA 0
-        }
         if (-not ($Server)){
-            $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
-            if ($server -notlike 'http*://*'){
-                Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
+            if ($Settings){
+              $Server = $Settings|Select-object -Expand 'Server Address' -EA 0
+            }
+            if (-not ($Server)){
+                $Server = Read-Host -Prompt 'Provide the URL to you LabTech server (https://lt.domain.com):'
             }
         }
         if (-not ($Password)){
-            $Password = Read-Host -Prompt 'Provide the server password:'
+            if ($Settings){
+                $Password = $Settings|Select-object -Expand ServerPassword -EA 0
+            }
+            if (-not ($Password)){
+                $Password = Read-Host -Prompt 'Provide the server password:'
+            }
         }
         if (-not ($LocationID)){
-            $LocationID = Read-Host -Prompt 'Provide the LocationID'
+            if ($Settings){
+                $LocationID = $Settings|Select-object -Expand LocationID -EA 0
+            }
+            if (-not ($LocationID)){
+                $LocationID = Read-Host -Prompt 'Provide the LocationID'
+            }
         }
-        if($Rename){
+        if ($Rename){
             $Rename = "-Rename $Rename"
         }
 
-        $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0 -EA 0)
+        if ($server -notlike 'http*://*'){
+            Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
+        }
 
         Write-host "Reinstalling LabTech with the following information, -Server $Server -Password $Password -LocationID $LocationID $Rename"
     }#End Begin
   
     Process{
-        if($Backup){
+        if ($Backup){
             New-LTServiceBackup
         }
         Try{
@@ -769,7 +781,8 @@ Function Reinstall-LTService{
     }#End Process
   
     End{
-        If($?){
+        If ($?){
+            Return
         }
         else {
             $($Error[0])
@@ -822,7 +835,7 @@ Function Get-LTError{
             $Errors = $Errors -join ' ' -split ':::'
             foreach($Line in $Errors){
                 $items = $Line -split "`t" -replace ' - ',''
-                if($items[1]){
+                if ($items[1]){
                     $object = New-Object -TypeName PSObject
                     $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
                     $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $([datetime]$items[1])
@@ -1003,7 +1016,7 @@ Function Hide-LTAddRemove{
     }#End Process
   
     End{
-        if($?){
+        if ($?){
             Write-Output "LabTech is now hidden from Add/Remove Programs."
         }
         else {$Error[0]}
@@ -1160,7 +1173,7 @@ Function Test-LTPorts{
     }#End Begin
   
       Process{
-        if($Quiet){
+        if ($Quiet){
             Test-Connection $Servers -Quiet
             return
         }
@@ -1201,8 +1214,8 @@ Function Test-LTPorts{
       }#End Process
   
       End{
-        If($?){
-            if(-not ($Quiet)){
+        If ($?){
+            if (-not ($Quiet)){
                 Write-Output "Finished"
             }          
         }
@@ -1252,10 +1265,10 @@ Function Get-LTLogging{
   
   End{
     if ($?){
-        if($value -eq 1){
+        if ($value -eq 1){
             Write-Output "Current logging level: Normal"
         }
-        elseif($value -eq 1000){
+        elseif ($value -eq 1000){
             Write-Output "Current logging level: Verbose"
         }
         else{
@@ -1302,7 +1315,7 @@ Function Set-LTLogging{
         if ($Normal){
             Set-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -Name 'Debuging' -Value 1
         }
-        if($Verbose){
+        if ($Verbose){
             Set-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -Name 'Debuging' -Value 1000
         }
         Start-LTService
@@ -1548,7 +1561,7 @@ Function Rename-LTAddRemove{
     }#End Process
   
     End{
-        if($?){
+        if ($?){
             Write-Output "LabTech is now listed as '$Name' in Add/Remove Programs."
         }
         else {$Error[0]}
