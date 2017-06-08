@@ -7,10 +7,10 @@
 
 
 .DESCRIPTION
-    This is a set of commandlets to interface with the LabTech Agent v10.5
+    This is a set of commandlets to interface with the LabTech Agent v10.5 and v11.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -18,14 +18,19 @@
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+
+    Update Date: 6/7/2017
+    Purpose/Change: Updates to address 32-bit vs. 64-bit operations.
+
 #>
     
 #requires -version 2
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
+if ((Get-WmiObject -Class Win32_OperatingSystem).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
-$ModuleVersion = "1.1"
+$ModuleVersion = "1.2"
 
 #Ignore SSL errors
 add-type @"
@@ -280,24 +285,25 @@ Function Start-LTService{
         #Kill all processes that are using the tray port 
         [array]$processes = @()
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
-        $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
-        foreach ($line in $netstat){
-            $processes += ($line -split '  {3,}')[-1]
-        }
-        $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-        if ($processes) {
-	    foreach ($proc in $processes){
-                Write-Output "Process ID:$proc is using port $Port. Killing process."
-                Stop-Process -ID $proc -Force -Verbose
-	    }
-        }
+	if (-not ($Port)) {$Port = "42000"}
     }#End Begin
   
     Process{
         Try{
-            @('LTService','LTSvcMon') | ForEach-Object {
-                        if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
-            }
+          $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
+          foreach ($line in $netstat){
+              $processes += ($line -split '  {3,}')[-1]
+          }
+          $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
+          if ($processes) {
+  	    foreach ($proc in $processes){
+                  Write-Output "Process ID:$proc is using port $Port. Killing process."
+                  Stop-Process -ID $proc -Force -Verbose
+	      }
+          }
+          @('LTService','LTSvcMon') | ForEach-Object {
+                      if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
+          }
         }#End Try
     
         Catch{
@@ -1548,6 +1554,5 @@ Function Rename-LTAddRemove{
         else {$Error[0]}
     }#End End
 }#End Function Rename-LTAddRemove
-
 
 #endregion Functions
