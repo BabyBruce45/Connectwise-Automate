@@ -18,9 +18,10 @@
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+#>
     
 #requires -version 2
-if (-not ($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
+if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
 
 #Module Version
@@ -1378,7 +1379,7 @@ Function New-LTServiceBackup {
     This will also backup those files to "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup"
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  5/11/2017
@@ -1387,19 +1388,67 @@ Function New-LTServiceBackup {
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
     
+    Update Date: 6/7/2017
+    Purpose/Change: Updated error handling.
+    
 .LINK
     http://labtechconsulting.com
 #> 
-    Remove-Variable BackupPath,Keys,Path,Result,Reg,Path -EA 0 #Clearing Variables for use
-    $BackupPath = "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup"
-    $Keys = 'HKLM\SOFTWARE\LabTech'
-    $Path = "$BackupPath\LTBackup.reg"
-    Copy-Item "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)" "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup" -Recurse -Force    
-    $Result = reg.exe export $Keys $Path /y 2>''
-    $Reg = Get-Content $Path
-    $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
-    $Reg | Out-File $Path
-    $Result = reg.exe import $Path 2>''
+    [CmdletBinding()]
+    Param ()
+      
+  Begin{
+    Remove-Variable LTPath,BackupPath,Keys,Path,Result,Reg,RegPath -EA 0 #Clearing Variables for use
+    $LTPath = "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)"
+    $BackupPath = "$($LTPath)Backup"
+    $Keys = "HKLM\SOFTWARE\LabTech"
+    $RegPath = "$BackupPath\LTBackup.reg"
+	
+    Write-Verbose "Verbose: Checking for registry keys."
+    if ((Test-Path ($Keys -replace '^(H[^\\]*)','$1:')) -eq $False){
+        Write-Error "ERROR: Unable to find registry information on LTSvc. Make sure the agent is installed." -ErrorAction Stop
+        Return
+    }
+    if ($(Test-Path -Path $LTPath -PathType Container) -eq $False) {
+      Write-Error "ERROR: Unable to find LTSvc folder path $LTPath" -ErrorAction Stop
+    }
+    New-Item $BackupPath -type directory -ErrorAction SilentlyContinue | Out-Null
+    if ($(Test-Path -Path $BackupPath -PathType Container) -eq $False) {
+      Write-Error "ERROR: Unable to create backup folder path $BackupPath" -ErrorAction Stop
+    }
+  }#End Begin
+  
+  Process{
+    Try{
+	Copy-Item $LTPath $BackupPath -Recurse -Force
+    }#End Try
+    
+    Catch{
+	Write-Error "ERROR: There was a problem backing up the LTSvc Folder. $($Error[0])"
+    }#End Catch
+
+    Try{
+	$Result = reg.exe export "$Keys" "$RegPath" /y 2>''
+	$Reg = Get-Content $RegPath
+	$Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
+	$Reg | Out-File $RegPath
+	$Result = reg.exe import "$RegPath" 2>''
+	$True | Out-Null #Protection to prevent exit status error
+    }#End Try
+ 
+    Catch{
+	Write-Error "ERROR: There was a problem backing up the LTSvc Registry keys. $($Error[0])"
+    }#End Catch
+  }#End Process
+  
+  End{
+    If ($?){
+	Write-Output "The LabTech Backup has been created."
+    }
+    Else {
+        Write-Error "ERROR: There was a problem completing the LTSvc Backup. $($Error[0])"
+    }#End If
+  }#End End
 }#End Function New-LTServiceBackup
 
 Function Get-LTServiceInfoBackup { 
@@ -1426,7 +1475,7 @@ Function Get-LTServiceInfoBackup {
   Begin{
     Remove-Variable key -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
-    if ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
+    If ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
         Write-Error "ERROR: Unable to find backup information on LTSvc. Use New-LTServiceBackup to create a settings backup."
         Return
     }
@@ -1444,7 +1493,7 @@ Function Get-LTServiceInfoBackup {
   }#End Process
   
   End{
-    if ($?){
+    If ($?){
         $key
     }    
   }#End End
