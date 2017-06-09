@@ -10,17 +10,21 @@
     This is a set of commandlets to interface with the LabTech Agent v10.5
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
-  
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+#>
+    
 if (-not ($PSVersionTable)) {Write-Output 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
 
 #Module Version
-$ModuleVersion = "1.0"
+$ModuleVersion = "1.1"
 
 #Ignore SSL errors
 add-type @"
@@ -41,14 +45,18 @@ add-type @"
 Function Get-LTServiceInfo{ 
 <#
 .SYNOPSIS
-    This function will pull all of the registy data into an object.
+    This function will pull all of the registry data into an object.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -59,7 +67,7 @@ Function Get-LTServiceInfo{
     Remove-Variable key,BasePath,exclude -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
-        Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
+        Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed."
         Return
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
@@ -94,14 +102,18 @@ Function Get-LTServiceInfo{
 Function Get-LTServiceSettings{ 
 <#
 .SYNOPSIS
-    This function will pull the registy data from HKLM:\SOFTWARE\LabTech\Service\Settings into an object.
+    This function will pull the registry data from HKLM:\SOFTWARE\LabTech\Service\Settings into an object.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -112,7 +124,7 @@ Function Get-LTServiceSettings{
     Remove-Variable key,exclude -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\Settings') -eq $False){
-        Write-Error "ERROR: Unable to find LTSvc settings. Make sure the service is running." -ErrorAction Stop
+        Write-Error "ERROR: Unable to find LTSvc settings. Make sure the agent is installed." -ErrorAction Stop
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
   }#End Begin
@@ -140,11 +152,15 @@ Function Restart-LTService{
     This function will restart the LabTech Services.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -181,15 +197,19 @@ Function Stop-LTService{
     This function will stop the LabTech Services.
 
 .DESCRIPTION
-    This funtion will verify that the LabTech services are present then attempt to stop them.
+    This function will verify that the LabTech services are present then attempt to stop them.
     It will then check for any remaining LabTech processes and kill them.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #>   
@@ -209,7 +229,7 @@ Function Stop-LTService{
     }#End Try
     
     Catch{
-        Write-Error "ERROR: There was an error stoping the LabTech proccesses. $($Error[0])" -ErrorAction Stop
+        Write-Error "ERROR: There was an error stopping the LabTech processes. $($Error[0])" -ErrorAction Stop
     }#End Catch
   }#End Process
   
@@ -228,19 +248,22 @@ Function Start-LTService{
 
 .DESCRIPTION
     This function will verify that the LabTech services are present.
-    It will then check for any proccess that is using port 42000 and kill it.
+    It will then check for any process that is using the LTTray port (Default 42000) and kill it.
     Next it will start the services.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
 
     Update Date: 5/11/2017
     Purpose/Change: added check for non standard port number and set services to auto start
 
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+        
 .LINK
     http://labtechconsulting.com
 #>
@@ -299,12 +322,12 @@ Function Uninstall-LTService{
 
 .DESCRIPTION
     This function will stop all the LabTech services. It will then download the current agent install MSI and issue an uninstall command.
-    It will then download and run Agent_Uninstall.exe from the LabTech server. It will then scrub any remaining file/registry/service.
+    It will then download and run Agent_Uninstall.exe from the LabTech server. It will then scrub any remaining file/registry/service data.
 
 .PARAMETER Server
     This is the URL to your LabTech server. 
-    example: https://lt.domain.com
-    This is used to download the uninstallers.
+    Example: https://lt.domain.com
+    This is used to download the uninstall utilities.
     If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
 
 .PARAMETER Backup
@@ -319,11 +342,15 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -439,7 +466,7 @@ Function Uninstall-LTService{
 
             #Remove all registry keys
             foreach ($reg in $regs) {
-                remove-item -Recurse -Path $reg -ErrorAction SilentlyContinue
+                Remove-Item -Recurse -Path $reg -ErrorAction SilentlyContinue
             }
 
             #Remove Services
@@ -450,7 +477,7 @@ Function Uninstall-LTService{
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error durring the uninstall process. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: There was an error during the uninstall process. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
   
@@ -475,7 +502,7 @@ Function Install-LTService{
 .PARAMETER Server
     This is the URL to your LabTech server. 
     example: https://lt.domain.com
-    This is used to download the uninstallers.
+    This is used to download the installation files.
     (Get-LTServiceInfo|Select-Object -Expand 'Server Address' -ErrorAction SilentlyContinue)
 
 .PARAMETER Password
@@ -494,14 +521,18 @@ Function Install-LTService{
 
 .EXAMPLE
     Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
-    This will install the LabTech agent using the provided server URL, Password, and LocationID.
+    This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -526,7 +557,7 @@ Function Install-LTService{
         
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
         if(-not ($DotNet -like '3.5.*')){
-            Write-Output ".NET 3.5 Needs installing."
+            Write-Output ".NET 3.5 installation needed."
             #Install-WindowsFeature Net-Framework-Core
             $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem).version
 
@@ -597,7 +628,7 @@ Function Install-LTService{
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error durring the install process. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: There was an error during the install process. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
   
@@ -624,13 +655,13 @@ Function Reinstall-LTService{
     This function will reinstall the LabTech agent from the machine.
 
 .DESCRIPTION
-    This script will atempt to pull all current settings from machine and issue an 'Uninstall-LTService' 'Reinstall-LTService' with gathered information. 
-    If the function is unable to find settings it will ask for needed paramaters. 
+    This script will attempt to pull all current settings from machine and issue an 'Uninstall-LTService', 'Install-LTService' with gathered information. 
+    If the function is unable to find the settings it will ask for needed parameters. 
 
 .PARAMETER Server
     This is the URL to your LabTech server. 
-    example: https://lt.domain.com
-    This is used to download the uninstallers.
+    Example: https://lt.domain.com
+    This is used to download the installation and removal utilities.
     If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
     If it is unable to find LT currently installed it will try Get-LTServiceInfoBackup
 
@@ -644,7 +675,7 @@ Function Reinstall-LTService{
     example: 555
 
 .PARAMETER Backup
-    This will run a New-LTServiceBackup comand before uninstalling.
+    This will run a New-LTServiceBackup command before uninstalling.
 
 .PARAMETER Hide
     Will remove from add-remove programs
@@ -661,11 +692,15 @@ Function Reinstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -722,7 +757,7 @@ Function Reinstall-LTService{
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error durring the reinstall process. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: There was an error during the reinstall process. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
   
@@ -749,11 +784,15 @@ Function Get-LTError{
     Open the log file in a sortable searchable window.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -804,7 +843,7 @@ Function Get-LTError{
 Function Reset-LTService{
 <#
 .SYNOPSIS
-    This function will remove local settings on the aggent.
+    This function will remove local settings on the agent.
 
 .DESCRIPTION
     This function can remove some of the agents local settings.
@@ -812,7 +851,7 @@ Function Reset-LTService{
     The function will stop the services, make the change, then start the services.
     Resetting all of these will force the agent to check in as a new agent.
     If you have MAC filtering enabled it should check back in with the same ID.
-    This function is usefull for duplicate agents.
+    This function is useful for duplicate agents.
 
 .PARAMETER ID
     This will reset the AgentID of the computer
@@ -832,11 +871,15 @@ Function Reset-LTService{
     This resets only the ID of the agent.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -845,8 +888,7 @@ Function Reset-LTService{
     Param(
         [switch]$ID,
         [switch]$Location,
-        [switch]$MAC
-	    
+        [switch]$MAC	    
     )   
     
     Begin{
@@ -906,17 +948,21 @@ Function Reset-LTService{
 Function Hide-LTAddRemove{
 <#
 .SYNOPSIS
-    This function hides the LabTech install from add/remove programs list.
+    This function hides the LabTech install from the Add/Remove Programs list.
 
 .DESCRIPTION
-    This function will rename the DisplayName registry key to hide it from the add/remove programs list.
+    This function will rename the DisplayName registry key to hide it from the Add/Remove Programs list.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #>
@@ -967,11 +1013,15 @@ Function Show-LTAddRemove{
     If there is not HiddenDisplayName key the function will import a new entry.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #>
@@ -1040,14 +1090,17 @@ Function Test-LTPorts{
     This will return a bool for connectivity to the Server
 
 .NOTES
-    Version:        1.0
+    Version:        1.2
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
 
     Update Date:    5/11/2017 
     Purpose/Change: Quiet feature
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
 
 .LINK
     http://labtechconsulting.com
@@ -1071,7 +1124,6 @@ Function Test-LTPorts{
             [parameter(Mandatory=$true , Position=1)]
             [int]
             $Port
-
             )
 	
 	Remove-Variable RemoteServer,test -EA 0 #Clearing Variables for use
@@ -1096,7 +1148,7 @@ Function Test-LTPorts{
 
     }#End Function TestPort
 
-    	Remove-Variable server,servers,proc,processes,netstat,line -EA 0 #Clearing Variables for use
+    	Remove-Variable server,servers,proc,processes,port,netstat,line -EA 0 #Clearing Variables for use
         $Servers = (((Get-LTServiceInfo -EA 0|Select-object -ExpandProperty 'Server Address' -EA 0).Split('|')) -replace("(http|https)://",'')|Foreach {$_.Trim()})
     }#End Begin
   
@@ -1106,9 +1158,12 @@ Function Test-LTPorts{
             return
         }
         Try{
-            #Get all processes that are using port 42000
+            #Learn LTTrayPort if available.
+            $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
+	    if (-not ($Port) -or $Port -notmatch '^\d+$') {$Port=42000}
             [array]$processes = @()
-            $netstat = netstat.exe -a -o -n | Select-String 42000
+            #Get all processes that are using LTTrayPort (Default 42000)
+            $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
             foreach ($line in $netstat) {
                 $processes += ($line -split '  {3,}')[-1]
             }
@@ -1116,9 +1171,9 @@ Function Test-LTPorts{
             if ($processes) {
 		    foreach ($proc in $processes) {
 			if ((Get-Process -ID $proc -EA 0).ProcessName -eq 'LTSvc') {
-			    Write-Output "LTSvc is using port 42000"
+			    Write-Output "LTSvc is using port $Port"
 			} else {
-			    Write-Output "Error: $((Get-Process -ID $proc).ProcessName) is using port 42000"
+			    Write-Output "Error: $((Get-Process -ID $proc).ProcessName) is using port $Port"
 			}
 	  	     }
             }
@@ -1155,11 +1210,15 @@ Function Get-LTLogging{
     This function will pull the logging level of the LabTech service.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1170,7 +1229,7 @@ Function Get-LTLogging{
     Remove-Variable value -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\settings') -eq $False){
-        Write-Error "ERROR: Unable to find logging settings for LTSvc. Make sure the service is running." -ErrorAction Stop
+        Write-Error "ERROR: Unable to find logging settings for LTSvc. Make sure the agent is installed." -ErrorAction Stop
     }
   }#End Begin
   
@@ -1205,11 +1264,15 @@ Function Set-LTLogging{
         This function will set the logging level of the LabTech service.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1264,11 +1327,15 @@ Function Get-LTProbeErrors {
     Open the log file in a sortable searchable window.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  3/14/2016
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1311,11 +1378,15 @@ Function New-LTServiceBackup {
     This will also backup those files to "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)Backup"
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  5/11/2017
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1334,14 +1405,18 @@ Function New-LTServiceBackup {
 Function Get-LTServiceInfoBackup { 
 <#
 .SYNOPSIS
-    This function will pull all of the backed up registy data into an object.
+    This function will pull all of the backed up registry data into an object.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  5/11/2017
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1352,7 +1427,7 @@ Function Get-LTServiceInfoBackup {
     Remove-Variable key -EA 0 #Clearing Variables for use
     Write-Verbose "Verbose: Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
-        Write-Error "ERROR: Unable to find information on LTSvc. Make sure the service is running."
+        Write-Error "ERROR: Unable to find backup information on LTSvc. Use New-LTServiceBackup to create a settings backup."
         Return
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
@@ -1378,17 +1453,21 @@ Function Get-LTServiceInfoBackup {
 Function Rename-LTAddRemove{
 <#
 .SYNOPSIS
-    This function renames the LabTech install from add/remove programs list.
+    This function renames the LabTech install as shown in the Add/Remove Programs list.
 
 .DESCRIPTION
-    This function will change the value of the DisplayName registry key to effect add/remove programs list.
+    This function will change the value of the DisplayName registry key to effect Add/Remove Programs list.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
-    website:        labtechconsulting.com
+    Website:        labtechconsulting.com
     Creation Date:  5/14/2017
     Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
 .LINK
     http://labtechconsulting.com
 #>
