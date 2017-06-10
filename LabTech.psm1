@@ -669,7 +669,7 @@ Function Install-LTService{
                     } else {
                         New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
                         $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-			If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
+	                    If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
                             $GoodServer = $Svr
                         } else {
                             Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
@@ -686,8 +686,8 @@ Function Install-LTService{
     End{
         if ($GoodServer) {
             Write-Output "Starting install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
-            Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer SERVERPASS=$Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer SERVERPASS=$ServerPassword LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer SERVERPASS=$ServerPassword LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
 
             Try{
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
@@ -707,11 +707,13 @@ Function Install-LTService{
             }#End Catch
 
             $tmpLTSI = Get-LTServiceInfo -EA 0
-            If (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -and ($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
-                Write-Host ""
-                Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
-                if ($Rename){
-                    Rename-LTAddRemove -Name $Rename
+            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID'})) {
+	            if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
+                    Write-Host ""
+                    Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
+                    if ($Rename){
+                        Rename-LTAddRemove -Name $Rename
+                    }
                 }
             }
             else {
@@ -758,12 +760,12 @@ Function Reinstall-LTService{
     This will call Rename-LTAddRemove to rename the install in Add/Remove Programs
 
 .EXAMPLE
-    Uninstall-LTService 
-    This will uninstall the LabTech agent using the server address in the registry.
+    ReInstall-LTService 
+    This will ReInstall the LabTech agent using the server address in the registry.
 
 .EXAMPLE
-    Uninstall-LTService -Server 'https://lt.domain.com'
-    This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
+    ReInstall-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
+    This will ReInstall the LabTech agent using the provided server URL to download the installation files.
 
 .NOTES
     Version:        1.3
@@ -816,12 +818,12 @@ Function Reinstall-LTService{
                 $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
             }
         }
-        if (-not ($Password)){
+        if (-not ($ServerPassword)){
             if ($Settings){
-                $Password = $Settings|Select-object -Expand ServerPassword -EA 0
+                $ServerPassword = $Settings|Select-object -Expand ServerPassword -EA 0
             }
-            if (-not ($Password)){
-                $Password = Read-Host -Prompt 'Provide the server password:'
+            if (-not ($ServerPassword)){
+                $ServerPassword = Read-Host -Prompt 'Provide the server password:'
             }
         }
         if (-not ($LocationID)){
@@ -846,11 +848,11 @@ Function Reinstall-LTService{
     }#End Process
   
     End{
-        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join '|') -Password $Password -LocationID $LocationID $Rename"
+        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join '|') -Password $ServerPassword -LocationID $LocationID $Rename"
         Try{
             Uninstall-LTService -Server $ServerList
             Start-Sleep 10
-            Install-LTService -Server $ServerList -Password $Password -LocationID $LocationID -Hide:$Hide $Rename
+            Install-LTService -Server $ServerList -Password $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
     
         Catch{
