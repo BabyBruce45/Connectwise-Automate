@@ -10,7 +10,7 @@
     This is a set of commandlets to interface with the LabTech Agent v10.5 and v11.
 
 .NOTES
-    Version:        1.2
+    Version:        1.3
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -22,6 +22,9 @@
     Update Date: 6/7/2017
     Purpose/Change: Updates to address 32-bit vs. 64-bit operations.
 
+    Update Date: 6/10/2017
+    Purpose/Change: Updates for pipeline input, support for multiple servers
+    
 #>
     
 #requires -version 2
@@ -697,8 +700,8 @@ Function Install-LTService{
                 Do {
                     Write-Host -NoNewline '.'
                     Start-Sleep 2
-                } until ($sw.elapsed -gt $timeout -or (Get-LTServiceInfo -EA 0|Select-Object -Expand 'ID' -EA 0) -gt 1)
-                Write-Verbose "Completed waiting for LabTech Installation."
+                } until ($sw.elapsed -gt $timeout -or (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand 'ID' -EA 0) -gt 1)
+                Write-Verbose "Completed wait for LabTech Installation."
                 If ($Hide) {Hide-LTAddRemove}
             }#End Try
 
