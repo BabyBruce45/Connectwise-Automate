@@ -758,6 +758,7 @@ Function Reinstall-LTService{
             $Rename = "-Rename $Rename"
         }
 
+        $Server = ($Server.Split('|')|Foreach {$_.Trim()}|Select-Object -Index 0 -EA 0)
         if ($server -notlike 'http*://*'){
             Write-Error 'Server address is not formatted correctly. Example: https://labtech.labtechconsulting.com' -ErrorAction Stop
         }
