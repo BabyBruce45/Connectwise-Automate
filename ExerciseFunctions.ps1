@@ -37,6 +37,12 @@ catch {'Error running Stop-LTService'; $($Error[0])}
 try {Start-LTService}
 catch {'Error running Start-LTService'; $($Error[0])}
 
+if (!($BackupSettings)) {
 'Running Reinstall-LTService'
 try {Reinstall-LTService}
 catch {'Error running Reinstall-LTService'; $($Error[0])}
+} else {
+'Running $BackupSettings | Reinstall-LTService'
+try { $BackupSettings | Reinstall-LTService }
+catch {'Error running $BackupSettings | Reinstall-LTService'; $($Error[0])}
+}
