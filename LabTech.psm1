@@ -496,7 +496,7 @@ Function Uninstall-LTService{
     End{
         if ($GoodServer) {
             Try{
-                Write-Output "Starting uninstall."
+                Write-Output "Starting Uninstall."
 
                 #Kill all running processes from %ltsvcdir%   
                 if (Test-Path $BasePath){
@@ -700,7 +700,7 @@ Function Install-LTService{
             $Password = "SERVERPASS='$ServerPassword'"
         }
         if ($GoodServer) {
-            Write-Output "Starting install."
+            Write-Output "Starting Install."
             $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
             Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
 
