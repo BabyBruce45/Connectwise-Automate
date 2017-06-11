@@ -660,24 +660,30 @@ Function Install-LTService{
 	    if (-not ($GoodServer)) {
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
-                    $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
-                    $installerTest = [System.Net.WebRequest]::Create($installer)
-                    $installerTest.KeepAlive=$False
-                    $installerTest.ProtocolVersion = '1.0'
-                    $installerResult = $installerTest.GetResponse()
-                    $installerTest.Abort()
-                    if ($installerResult.StatusCode -ne 200) {
-                        Write-Warning "Unable to download Agent_Install from server $($Svr)."
-                        Continue
-                    } else {
-                        New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
-                        $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-	                    If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
-                            $GoodServer = $Svr
-                        } else {
-                            Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
+                    Try {
+                        $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
+                        $installerTest = [System.Net.WebRequest]::Create($installer)
+                        $installerTest.KeepAlive=$False
+                        $installerTest.ProtocolVersion = '1.0'
+                        $installerResult = $installerTest.GetResponse()
+                        $installerTest.Abort()
+                        if ($installerResult.StatusCode -ne 200) {
+                            Write-Warning "Unable to download Agent_Install from server $($Svr)."
                             Continue
+                        } else {
+                            New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
+                            $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+	                        If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
+                                $GoodServer = $Svr
+                            } else {
+                                Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
+                                Continue
+                            }
                         }
+                    }
+                    Catch {
+                        Write-Warning "Error encountered downloading from $($Svr)."
+                        Continue
                     }
                 } else {
                     Write-Warning "Server address $($Svr) is not formatted correctly. Example: http://labtech.labtechconsulting.com"
@@ -852,7 +858,7 @@ Function Reinstall-LTService{
     }#End Process
   
     End{
-        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join '|') -Password $ServerPassword -LocationID $LocationID $Rename"
+        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') -Password $ServerPassword -LocationID $LocationID $Rename"
         Try{
             Uninstall-LTService -Server $ServerList
             Start-Sleep 10
