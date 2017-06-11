@@ -600,10 +600,10 @@ Function Install-LTService{
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true, Mandatory=$True)]
         [string[]]$Server,
-        [Parameter(ValueFromPipelineByPropertyName = $true, Mandatory=$True)]
+        [Parameter(ValueFromPipelineByPropertyName = $true)]
         [Alias("Password")]
         [string]$ServerPassword,
-        [Parameter(ValueFromPipelineByPropertyName = $true, Mandatory=$True)]
+        [Parameter(ValueFromPipelineByPropertyName = $true)]
         [int]$LocationID,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [string]$Rename,
@@ -612,7 +612,7 @@ Function Install-LTService{
     )
 
     Begin{
-    	Remove-Variable DotNET,OSVersion,Result,installer,installerTest,installerResult,GoodServer,Svr,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
+    	Remove-Variable DotNET,OSVersion,Password,Result,installer,installerTest,installerResult,GoodServer,Svr,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
 
         if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
             Write-Error "LabTech is already installed." -ErrorAction Stop
@@ -652,6 +652,9 @@ Function Install-LTService{
 
         if (-not ($DotNet -like '3.5.*')){
             Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop
+        }
+        if (-not ($LocationID)){
+            $LocationID = "1"
         }
     }#End Begin
   
@@ -693,10 +696,13 @@ Function Install-LTService{
     }#End Process
   
     End{
+        if (($ServerPassword)){
+            $Password = "SERVERPASS='$ServerPassword'"
+        }
         if ($GoodServer) {
             Write-Output "Starting install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer SERVERPASS=$ServerPassword LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
-            Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer SERVERPASS=$ServerPassword LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
 
             Try{
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
@@ -814,7 +820,7 @@ Function Reinstall-LTService{
     )
            
     Begin{
-    	Remove-Variable Svr, ServerList, Settings -EA 0 #Clearing Variables for use
+    	Remove-Variable Password, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
         if (-not ($Settings)){
@@ -830,10 +836,10 @@ Function Reinstall-LTService{
         }
         if (-not ($ServerPassword)){
             if ($Settings){
-                $ServerPassword = $Settings|Select-object -Expand ServerPassword -EA 0
+#                $ServerPassword = $Settings|Select-object -Expand ServerPassword -EA 0
             }
             if (-not ($ServerPassword)){
-                $ServerPassword = Read-Host -Prompt 'Provide the server password:'
+#                $ServerPassword = Read-Host -Prompt 'Provide the server password:'
             }
         }
         if (-not ($LocationID)){
@@ -843,6 +849,9 @@ Function Reinstall-LTService{
             if (-not ($LocationID)){
                 $LocationID = Read-Host -Prompt 'Provide the LocationID'
             }
+        }
+        if (-not ($LocationID)){
+            $LocationID = "1"
         }
         if ($Rename){
             $Rename = "-Rename $Rename"
@@ -858,11 +867,14 @@ Function Reinstall-LTService{
     }#End Process
   
     End{
-        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') -Password $ServerPassword -LocationID $LocationID $Rename"
+        if (($ServerPassword)){
+            $Password = "-Password '$ServerPassword'"
+        }
+        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $Password -LocationID $LocationID $Rename"
         Try{
             Uninstall-LTService -Server $ServerList
             Start-Sleep 10
-            Install-LTService -Server $ServerList -Password $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename
+            Install-LTService -Server $ServerList $Password -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
     
         Catch{
