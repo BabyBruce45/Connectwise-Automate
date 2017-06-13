@@ -697,7 +697,7 @@ Function Install-LTService{
   
     End{
         if (($ServerPassword)){
-            $Password = "SERVERPASS='$ServerPassword'"
+            $Password = "SERVERPASS=$ServerPassword"
         }
         if ($GoodServer) {
             Write-Output "Starting Install."
