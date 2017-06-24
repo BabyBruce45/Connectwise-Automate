@@ -71,7 +71,8 @@ Function Get-LTServiceInfo{
     [CmdletBinding()]
     Param ()
       
-  Begin{
+  Begin
+  {
     Remove-Variable key,BasePath,exclude,Servers -EA 0 #Clearing Variables for use
     Write-Verbose "Starting Get-LTServiceInfo"
 
@@ -519,6 +520,7 @@ Function Uninstall-LTService{
 
                 #Remove %ltsvcdir%
                 Remove-Item -Recurse -Force $BasePath -ErrorAction SilentlyContinue
+                Remove-Item -Recurse -Force "$env:windir\temp\_ltudpate" -ErrorAction SilentlyContinue
 
                 #Remove all registry keys
                 foreach ($reg in $regs) {
@@ -528,6 +530,11 @@ Function Uninstall-LTService{
                 #Remove Services
                 @('LTService','LTSvcMon') | ForEach-Object {
                             if (Get-Service $_ -ea 0) {Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait}
+                }
+
+                #Post Uninstall Check
+                if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+                    Write-Error "Remnence of install still detected. Please reboot and try again."
                 }
 
             }#End Try
@@ -622,7 +629,8 @@ Function Install-LTService{
         }
         
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
-        if (-not ($DotNet -like '3.5.*')){
+        if (-not ($DotNet -like '3.5.*'))
+        {
             Write-Output ".NET 3.5 installation needed."
             #Install-WindowsFeature Net-Framework-Core
             $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem).version
@@ -655,7 +663,7 @@ Function Install-LTService{
         }
         if (-not ($LocationID)){
             $LocationID = "1"
-        }
+        }        
     }#End Begin
   
     Process{
@@ -700,6 +708,10 @@ Function Install-LTService{
             $Password = "SERVERPASS=$ServerPassword"
         }
         if ($GoodServer) {
+            if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+                Write-Warning "Previous install detected. Calling Uninstall-LTService"
+                Uninstall-LTService -Server $GoodServer
+            }
             Write-Output "Starting Install."
             $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
             Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
@@ -832,14 +844,6 @@ Function Reinstall-LTService{
             }
             if (-not ($Server)){
                 $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
-            }
-        }
-        if (-not ($ServerPassword)){
-            if ($Settings){
-#                $ServerPassword = $Settings|Select-object -Expand ServerPassword -EA 0
-            }
-            if (-not ($ServerPassword)){
-#                $ServerPassword = Read-Host -Prompt 'Provide the server password:'
             }
         }
         if (-not ($LocationID)){
