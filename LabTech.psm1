@@ -421,8 +421,7 @@ Function Uninstall-LTService{
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_CLASSES_ROOT\LabTech'
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
         )
 
         #Cleanup previous uninstallers
@@ -444,10 +443,18 @@ Function Uninstall-LTService{
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     Try{
                         if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
-                        $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+                        $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
+                        $SvrVer = $(New-Object Net.WebClient).DownloadString($SvrVerCheck)
+                        if ($SvrVer -match '[|]{6}[0-9]{3}\.[0-9]{3}') {
+                            Write-Verbose "Unable to download Agent_Install.msi from server $($Svr)."
+                            Continue
+                        }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         $installerTest.KeepAlive=$False
                         $installerTest.ProtocolVersion = '1.0'
+                        $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+                        $installerTest = [System.Net.WebRequest]::Create($installer)
+                        $installerTest.KeepAlive=$False
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
                         if ($installerResult.StatusCode -ne 200) {
@@ -492,7 +499,7 @@ Function Uninstall-LTService{
             }
         }#End Foreach
     }#End Process
-  
+t  
     End{
         if ($GoodServer) {
             Try{
@@ -502,7 +509,7 @@ Function Uninstall-LTService{
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
                     if ($Executables) {
-	                ForEach($Item in $Executables){
+a	                ForEach($Item in $Executables){
                             Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
                         }
                     }
@@ -534,7 +541,7 @@ Function Uninstall-LTService{
 
                 #Post Uninstall Check
                 if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
-                    Write-Error "Remnence of install still detected. Please reboot and try again."
+                    Write-Error "Remnants of install still detected. Please reboot and try again."
                 }
 
             }#End Try
@@ -620,7 +627,7 @@ Function Install-LTService{
     Begin{
     	Remove-Variable DotNET,OSVersion,Password,Result,installer,installerTest,installerResult,GoodServer,Svr,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
 
-        if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
+}        if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
             Write-Error "LabTech is already installed." -ErrorAction Stop
         }
 
@@ -663,7 +670,11 @@ Function Install-LTService{
         }
         if (-not ($LocationID)){
             $LocationID = "1"
-        }        
+        }
+	$logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
+	$logfile = "LTAgentInstall"
+	if ($(Test-Path -PathType Leaf -Path $($logpath\$logfile.log))){
+	f
     }#End Begin
   
     Process{
@@ -713,8 +724,8 @@ Function Install-LTService{
                 Uninstall-LTService -Server $GoodServer
             }
             Write-Output "Starting Install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
-            Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $($logpath\$logfile.log)"
+            Write-Verbose "Install Command Parameters: $($iarg)" '$env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
 
             Try{
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
@@ -735,7 +746,7 @@ Function Install-LTService{
             }#End Catch
 
             $tmpLTSI = Get-LTServiceInfo -EA 0
-            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID'})) {
+            if (($tmpLTSI)) {
 	    	if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                     Write-Host ""
                     Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
