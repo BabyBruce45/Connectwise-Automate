@@ -379,8 +379,7 @@ Function Uninstall-LTService{
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [string[]]$Server,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [switch]$Backup
+        [switch]$Backup = $False
     )   
     Begin{
         Remove-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 #Clearing Variables for use
@@ -647,10 +646,8 @@ Function Install-LTService{
         [string]$ServerPassword,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [int]$LocationID,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [string]$Rename,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [switch]$Hide
+        [string]$Rename = $null,
+        [switch]$Hide = $False
     )
 
     Begin{
@@ -806,7 +803,7 @@ Function Install-LTService{
                 if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                     Write-Host ""
                     Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
-                    if ($Rename){
+                    if (($Rename) -and $Rename -notmatch 'False'){
                         Rename-LTAddRemove -Name $Rename
                     }
                 }
@@ -894,16 +891,13 @@ Function Reinstall-LTService{
         [string]$ServerPassword,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [string]$LocationID,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [switch]$Backup,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [switch]$Hide,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [string]$Rename
+        [switch]$Backup = $False,
+        [switch]$Hide = $False,
+        [string]$Rename = $null
     )
            
     Begin{
-        Remove-Variable PasswordArg, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
+        Remove-Variable PasswordArg, RenameArg, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
         if (-not ($Settings)){
@@ -940,10 +934,16 @@ Function Reinstall-LTService{
             New-LTServiceBackup
         }
 
+        $RenameArg=''
+        if ($Rename){
+            $RenameArg = "-Rename $Rename"
+        }
+
         if (($ServerPassword)){
             $PasswordArg = "-Password '$ServerPassword'"
         }
-        Write-Host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $Rename"
+
+        Write-Host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
         Write-Verbose "Starting: Uninstall-LTService -Server $($ServerList -join ',')"
         Try{
             Uninstall-LTService -Server $serverlist
@@ -954,9 +954,10 @@ Function Reinstall-LTService{
         }#End Catch
 
         Start-Sleep 10
-        Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $Hide $Rename"
+        Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:$Hide $RenameArg"
+
         Try{
-            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID $Hide
+            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
     
         Catch{
@@ -1772,4 +1773,5 @@ Function Rename-LTAddRemove{
 }#End Function Rename-LTAddRemove
 
 #endregion Functions
+
 
