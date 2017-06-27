@@ -455,7 +455,7 @@ Function Uninstall-LTService{
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        $SVer = $SvrVer|select-string –pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
+                        $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
                         if ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
 			    $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
@@ -665,7 +665,7 @@ Function Install-LTService{
 
             if ($OSVersion -gt 6.2){
                 try{
-                    Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All | Out-Null
+                    Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All | Out-Null
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
@@ -720,7 +720,7 @@ Function Install-LTService{
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        $SVer = $SvrVer|select-string –pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
+                        $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
                         if ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
@@ -1554,10 +1554,10 @@ Function Get-LTProbeErrors {
         $errors = $errors -join ' ' -split ':::'
         foreach($Line in $Errors){
             $items = $Line -split "`t" -replace ' - ',''
-            $object = New-Object –TypeName PSObject
-            $object | Add-Member –MemberType NoteProperty –Name ServiceVersion –Value $items[0]
-            $object | Add-Member –MemberType NoteProperty –Name Timestamp –Value $([datetime]$items[1])
-            $object | Add-Member –MemberType NoteProperty –Name Message –Value $items[2]
+            $object = New-Object -TypeName PSObject
+            $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
+            $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $([datetime]$items[1])
+            $object | Add-Member -MemberType NoteProperty -Name Message -Value $items[2]
             Write-Output $object
         }
     }
