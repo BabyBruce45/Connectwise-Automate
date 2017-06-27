@@ -357,7 +357,7 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.2
+    Version:        1.3
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -368,6 +368,9 @@ Function Uninstall-LTService{
     
     Update Date: 6/10/2017
     Purpose/Change: Updates for pipeline input, support for multiple servers
+    
+    Update Date: 6/24/2017
+    Purpose/Change: Update to detect Server Version and use updated URL format for LabTech 11 Patch 13.
     
 .LINK
     http://labtechconsulting.com
@@ -380,7 +383,7 @@ Function Uninstall-LTService{
         [switch]$Backup
     )   
     Begin{
-    	Remove-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,GoodServer,Item -EA 0 #Clearing Variables for use
+    	Remove-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 #Clearing Variables for use
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Throw "Needs to be ran as Administrator" 
         }
@@ -421,8 +424,7 @@ Function Uninstall-LTService{
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
           'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
           'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_CLASSES_ROOT\LabTech'
+          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
         )
 
         #Cleanup previous uninstallers
@@ -434,6 +436,7 @@ Function Uninstall-LTService{
         if (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
         }
+        New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
 
         $xarg = "/x $installer /qn"
     }#End Begin
@@ -444,41 +447,63 @@ Function Uninstall-LTService{
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     Try{
                         if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
-                        $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+                        $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
+                        Write-Debug "Testing Server Response and Version: $SvrVerCheck"
+                        $SvrVer = $(New-Object Net.WebClient).DownloadString($SvrVerCheck)
+                        Write-Debug "Raw Response: $SvrVer"
+                        if ($SvrVer -NotMatch '(?<=[|]{6})[0-9]{3}\.[0-9]{3}') {
+                            Write-Verbose "Unable to test version response from $($Svr)."
+                            Continue
+                        }
+                        $SVer = $SvrVer|select-string –pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
+                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                            #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
+                            $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+                        } else {
+                            #Original Generic Installer URL - Yes, these both reference Location 1 and are thus the same. Will it change in Patch 14? This section is now ready.
+                            $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+                        }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         $installerTest.KeepAlive=$False
                         $installerTest.ProtocolVersion = '1.0'
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
                         if ($installerResult.StatusCode -ne 200) {
-                            Write-Verbose "Unable to download Agent_Install.msi from server $($Svr)."
+                            Write-Warning "Unable to download Agent_Install.msi from server $($Svr)."
                             Continue
                         }
                         else{
-                            Write-verbose "Downloading Agent_Install.msi from $installer"
-                            New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
+                            Write-Debug "Downloading Agent_Install.msi from $installer"
                             $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
                         }
 
-                        $uninstaller = "$($Svr)/Labtech/Deployment.aspx?probe=1&ID=-2"
+                        #Using $SVer results gathered above.
+                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                            #New Style Download Link starting with LT11 Patch 13 - The Agent Uninstaller URI has changed.
+                            $uninstaller = "$($Svr)/Labtech/Deployment.aspx?ID=-2"
+                        } else {
+                            #Original Uninstaller URL
+                            $uninstaller = "$($Svr)/Labtech/Deployment.aspx?probe=1&ID=-2"
+                        }
                         $uninstallerTest = [System.Net.WebRequest]::Create($uninstaller)
                         $uninstallerTest.KeepAlive=$False
                         $uninstallerTest.ProtocolVersion = '1.0'
                         $uninstallerResult = $uninstallerTest.GetResponse()
                         $uninstallerTest.Abort()
                         if ($uninstallerResult.StatusCode -ne 200) {
-                            Write-Verbose "Unable to download Agent_Uninstall from server."
+                            Write-Warning "Unable to download Agent_Uninstall from server."
                             Continue
                         }
                         else{
-                            Write-verbose "Downloading Agent_Uninstall.exe from $uninstaller"
+                            Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                             #Download Agent_Uninstall.exe
                             $(New-Object Net.WebClient).DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
                         }
                         If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and (Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
                             $GoodServer = $Svr
+                            Write-Verbose "Successfully downloaded files from $($Svr)."
                         } else {
-                            Write-Verbose "Error encountered downloading from $($Svr). Uninstall file(s) could be received."
+                            Write-Warning "Error encountered downloading from $($Svr). Uninstall file(s) could be received."
                             Continue
                         }
                     }
@@ -487,7 +512,7 @@ Function Uninstall-LTService{
                         Continue
                     }
                 } else {
-                    Write-Verbose "Server address $($Svr) is not formatted correctly. Example: http://labtech.labtechconsulting.com"
+                    Write-Verbose "Server address $($Svr) is not formatted correctly. Example: https://lt.domain.com"
                 }
             }
         }#End Foreach
@@ -534,7 +559,7 @@ Function Uninstall-LTService{
 
                 #Post Uninstall Check
                 if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
-                    Write-Error "Remnence of install still detected. Please reboot and try again."
+                    Write-Error "Remnants of previous install still detected. Please reboot and try again."
                 }
 
             }#End Try
@@ -587,7 +612,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.2
+    Version:        1.3
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -598,6 +623,9 @@ Function Install-LTService{
     
     Update Date: 6/10/2017
     Purpose/Change: Updates for pipeline input, support for multiple servers
+    
+    Update Date: 6/24/2017
+    Purpose/Change: Update to detect Server Version and use updated URL format for LabTech 11 Patch 13.
     
 .LINK
     http://labtechconsulting.com
@@ -618,7 +646,7 @@ Function Install-LTService{
     )
 
     Begin{
-    	Remove-Variable DotNET,OSVersion,Password,Result,installer,installerTest,installerResult,GoodServer,Svr,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
+    	Remove-Variable DotNET,OSVersion,PasswordArg,Result,logpath,logfile,curlog,installer,installerTest,installerResult,GoodServer,Svr,SVer,SvrVer,SvrVerCheck,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
 
         if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
             Write-Error "LabTech is already installed." -ErrorAction Stop
@@ -663,7 +691,19 @@ Function Install-LTService{
         }
         if (-not ($LocationID)){
             $LocationID = "1"
-        }        
+        }
+
+        $logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
+        $logfile = "LTAgentInstall"
+        $curlog = "$($logpath)\$($logfile).log"
+        if (-not (Test-Path -PathType Container -Path "$logpath\Installer" )){
+            New-Item "$logpath\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
+        }#End if
+        if ((Test-Path -PathType Leaf -Path $($curlog))){
+            $curlog = Get-Item -Path $curlog
+            Rename-Item -Path $($curlog.FullName) -NewName "$($logfile)-$(Get-Date $($curlog.LastWriteTime) -Format 'yyyyMMddHHmmss').log" -Force
+        }#End if
+
     }#End Begin
   
     Process{
@@ -672,7 +712,22 @@ Function Install-LTService{
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
                     Try {
-                        $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
+                        $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
+                        Write-Debug "Testing Server Response and Version: $SvrVerCheck"
+                        $SvrVer = $(New-Object Net.WebClient).DownloadString($SvrVerCheck)
+                        Write-Debug "Raw Response: $SvrVer"
+                        if ($SvrVer -NotMatch '(?<=[|]{6})[0-9]{3}\.[0-9]{3}') {
+                            Write-Verbose "Unable to test version response from $($Svr)."
+                            Continue
+                        }
+                        $SVer = $SvrVer|select-string –pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
+                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                            #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
+                            $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
+                        } else {
+                            #Original URL
+                            $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
+                        }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         $installerTest.KeepAlive=$False
                         $installerTest.ProtocolVersion = '1.0'
@@ -682,14 +737,15 @@ Function Install-LTService{
                             Write-Warning "Unable to download Agent_Install from server $($Svr)."
                             Continue
                         } else {
-                            New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
+                            Write-Debug "Downloading Agent_Install.msi from $installer"
                             $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-	                        If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
-                                $GoodServer = $Svr
-                            } else {
-                                Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
-                                Continue
-                            }
+                        }
+                        If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
+                            $GoodServer = $Svr
+                            Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
+                        } else {
+                            Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
+                            Continue
                         }
                     }
                     Catch {
@@ -697,7 +753,7 @@ Function Install-LTService{
                         Continue
                     }
                 } else {
-                    Write-Warning "Server address $($Svr) is not formatted correctly. Example: http://labtech.labtechconsulting.com"
+                    Write-Warning "Server address $($Svr) is not formatted correctly. Example: https://lt.domain.com"
                 }
             }
         }#End Foreach
@@ -705,7 +761,7 @@ Function Install-LTService{
   
     End{
         if (($ServerPassword)){
-            $Password = "SERVERPASS=$ServerPassword"
+            $PasswordArg = "SERVERPASS=$ServerPassword"
         }
         if ($GoodServer) {
             if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
@@ -713,10 +769,10 @@ Function Install-LTService{
                 Uninstall-LTService -Server $GoodServer
             }
             Write-Output "Starting Install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
-            Write-Verbose "Install Command: $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $Password LOCATION=$LocationID /qn /l $env:windir\temp\LabTech\LTAgentInstall.log"
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
 
             Try{
+                Write-Verbose "Launching Installation Process: msiexec.exe $($iarg)"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
@@ -724,9 +780,10 @@ Function Install-LTService{
                 Do {
                     Write-Host -NoNewline '.'
                     Start-Sleep 2
-		     $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
+       	            $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
                 } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
-                Write-Verbose "Completed wait for LabTech Installation."
+                $sw.Stop()
+                Write-Verbose "Completed wait for LabTech Installation after $($sw.Elapsed.Seconds.ToString()) seconds."
                 If ($Hide) {Hide-LTAddRemove}
             }#End Try
 
@@ -735,8 +792,8 @@ Function Install-LTService{
             }#End Catch
 
             $tmpLTSI = Get-LTServiceInfo -EA 0
-            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID'})) {
-	    	if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
+            if (($tmpLTSI)) {
+	    	    if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                     Write-Host ""
                     Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
                     if ($Rename){
@@ -745,7 +802,11 @@ Function Install-LTService{
                 }
             }
             else {
-                Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log" $($Error[0]) -ErrorAction Stop
+                if (($Error)) {
+                    Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log $($Error[0])" -ErrorAction Stop
+                } else {
+                    Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log" -ErrorAction Stop
+                }
             }
         } else {
             Write-Error "ERROR: No valid server was reached to use for the install." -ErrorAction Stop
@@ -832,7 +893,7 @@ Function Reinstall-LTService{
     )
            
     Begin{
-    	Remove-Variable Password, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
+    	Remove-Variable PasswordArg, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
         if (-not ($Settings)){
@@ -872,13 +933,13 @@ Function Reinstall-LTService{
   
     End{
         if (($ServerPassword)){
-            $Password = "-Password '$ServerPassword'"
+            $PasswordArg = "-Password '$ServerPassword'"
         }
-        Write-host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $Password -LocationID $LocationID $Rename"
+        Write-Host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $Rename"
         Try{
             Uninstall-LTService -Server $ServerList
             Start-Sleep 10
-            Install-LTService -Server $ServerList $Password -LocationID $LocationID -Hide:$Hide $Rename
+            Install-LTService -Server $ServerList $PasswordArg -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
     
         Catch{
