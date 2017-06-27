@@ -32,7 +32,7 @@ if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Ve
 if ((Get-WmiObject -Class Win32_OperatingSystem).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
-$ModuleVersion = "1.2"
+$ModuleVersion = "1.3"
 
 #Ignore SSL errors
 add-type @"
