@@ -645,8 +645,7 @@ Function Install-LTService{
             if ($OSVersion -gt 6.2){
                 try{
                     Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All | Out-Null
-                }
-                catch{
+                }                catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
                     Write-Error $Result -ErrorAction Stop
                 }
@@ -672,9 +671,15 @@ Function Install-LTService{
             $LocationID = "1"
         }
 	$logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
-	$logfile = "LTAgentInstall"
-	if ($(Test-Path -PathType Leaf -Path $($logpath\$logfile.log))){
-	f
+        $logfile = "LTAgentInstall"
+        $curlog = "$($logpath)\$($logfile).log"
+        if (-not (Test-Path -PathType Container -Path "$logpath\Installer" )){
+            New-Item "$logpath\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
+        }#End if
+        if ((Test-Path -PathType Leaf -Path $($curlog))){
+            $curlog = Get-Item -Path $curlog
+            Rename-Item -Path $($curlog.FullName) -NewName "$($logfile)-$(Get-Date $($curlog.LastWriteTime) -Format 'yyyyMMddHHmmss').log" -Force
+        }#End if
     }#End Begin
   
     Process{
