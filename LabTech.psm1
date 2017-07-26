@@ -427,7 +427,7 @@ Function Uninstall-LTService{
         Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue
 
         if (-not ($Server)){
-          $Server = Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand 'Server' -EA 0
+           $Server = Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand 'Server' -EA 0
         }
         if (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
@@ -475,7 +475,7 @@ Function Uninstall-LTService{
                             Continue
                         }
                         else{
-                                Write-verbose "Downloading Agent_Uninstall.exe from $uninstaller"
+                            Write-verbose "Downloading Agent_Uninstall.exe from $uninstaller"
                             #Download Agent_Uninstall.exe
                             $(New-Object Net.WebClient).DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
                         }
