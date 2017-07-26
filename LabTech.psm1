@@ -279,7 +279,8 @@ Function Start-LTService{
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
         
 .LINK
-    http://labtechconsulting.com
+
+http://labtechconsulting.com
 #>
     
     [CmdletBinding()]
@@ -288,7 +289,8 @@ Function Start-LTService{
     Begin{
         if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
-        }
+
+}
         #Kill all processes that are using the tray port 
         [array]$processes = @()
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
@@ -297,7 +299,8 @@ Function Start-LTService{
     }#End Begin
   
     Process{
-        Try{
+
+Try{
           $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
           foreach ($line in $netstat){
               $processes += ($line -split '  {3,}')[-1]
@@ -449,12 +452,10 @@ Function Uninstall-LTService{
                             Write-Verbose "Unable to download Agent_Install.msi from server $($Svr)."
                             Continue
                         }
-                        $installerTest = [System.Net.WebRequest]::Create($installer)
-                        $installerTest.KeepAlive=$False
-                        $installerTest.ProtocolVersion = '1.0'
                         $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         $installerTest.KeepAlive=$False
+                        $installerTest.ProtocolVersion = '1.0'
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
                         if ($installerResult.StatusCode -ne 200) {
@@ -478,7 +479,7 @@ Function Uninstall-LTService{
                             Continue
                         }
                         else{
-                            Write-verbose "Downloading Agent_Uninstall.exe from $uninstaller"
+                                Write-verbose "Downloading Agent_Uninstall.exe from $uninstaller"
                             #Download Agent_Uninstall.exe
                             $(New-Object Net.WebClient).DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
                         }
@@ -516,7 +517,7 @@ Function Uninstall-LTService{
 
                     #Unregister DLL
                     regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
-                }     
+                }#End If     
             
                 #Run MSI uninstaller for current installer
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
@@ -645,7 +646,8 @@ Function Install-LTService{
             if ($OSVersion -gt 6.2){
                 try{
                     Enable-WindowsOptionalFeature –Online –FeatureName "NetFx3" -All | Out-Null
-                }                catch{
+                }
+                catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
                     Write-Error $Result -ErrorAction Stop
                 }
@@ -670,7 +672,7 @@ Function Install-LTService{
         if (-not ($LocationID)){
             $LocationID = "1"
         }
-	$logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
+    	$logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
         $logfile = "LTAgentInstall"
         $curlog = "$($logpath)\$($logfile).log"
         if (-not (Test-Path -PathType Container -Path "$logpath\Installer" )){
@@ -740,7 +742,7 @@ Function Install-LTService{
                 Do {
                     Write-Host -NoNewline '.'
                     Start-Sleep 2
-		     $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
+                     $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
                 } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
                 Write-Verbose "Completed wait for LabTech Installation."
                 If ($Hide) {Hide-LTAddRemove}
