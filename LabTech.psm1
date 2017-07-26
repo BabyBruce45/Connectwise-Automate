@@ -499,7 +499,7 @@ Function Uninstall-LTService{
             }
         }#End Foreach
     }#End Process
-t  
+
     End{
         if ($GoodServer) {
             Try{
@@ -509,7 +509,7 @@ t
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
                     if ($Executables) {
-a	                ForEach($Item in $Executables){
+	                ForEach($Item in $Executables){
                             Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
                         }
                     }
@@ -627,7 +627,7 @@ Function Install-LTService{
     Begin{
     	Remove-Variable DotNET,OSVersion,Password,Result,installer,installerTest,installerResult,GoodServer,Svr,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
 
-}        if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
+        if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
             Write-Error "LabTech is already installed." -ErrorAction Stop
         }
 
