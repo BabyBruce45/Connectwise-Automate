@@ -365,7 +365,8 @@ Function Uninstall-LTService{
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
     
-    Update Date: 6/10/2017    Purpose/Change: Updates for pipeline input, support for multiple servers
+    Update Date: 6/10/2017
+    Purpose/Change: Updates for pipeline input, support for multiple servers
     
 .LINK
     http://labtechconsulting.com
