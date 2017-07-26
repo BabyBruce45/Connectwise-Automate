@@ -279,8 +279,7 @@ Function Start-LTService{
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
         
 .LINK
-
-http://labtechconsulting.com
+    http://labtechconsulting.com
 #>
     
     [CmdletBinding()]
@@ -289,32 +288,29 @@ http://labtechconsulting.com
     Begin{
         if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
-
-}
+        }
         #Kill all processes that are using the tray port 
         [array]$processes = @()
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
-	if (-not ($Port)) {$Port = "42000"}
-
+    	if (-not ($Port)) {$Port = "42000"}
     }#End Begin
   
     Process{
-
-Try{
-          $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
-          foreach ($line in $netstat){
-              $processes += ($line -split '  {3,}')[-1]
-          }
-          $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-          if ($processes) {
-  	    foreach ($proc in $processes){
-                  Write-Output "Process ID:$proc is using port $Port. Killing process."
-                  Stop-Process -ID $proc -Force -Verbose
-	      }
-          }
-          @('LTService','LTSvcMon') | ForEach-Object {
-                      if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
-          }
+        Try{
+            $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
+            foreach ($line in $netstat){
+                $processes += ($line -split '  {3,}')[-1]
+            }
+            $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
+            if ($processes) {
+          	    foreach ($proc in $processes){
+                    Write-Output "Process ID:$proc is using port $Port. Killing process."
+                    Stop-Process -ID $proc -Force -Verbose
+                }
+            }
+            @('LTService','LTSvcMon') | ForEach-Object {
+                if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
+            }
         }#End Try
     
         Catch{
@@ -686,7 +682,7 @@ Function Install-LTService{
   
     Process{
         Foreach ($Svr in $Server) {
-	    if (-not ($GoodServer)) {
+            if (-not ($GoodServer)) {
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
                     Try {
@@ -702,7 +698,7 @@ Function Install-LTService{
                         } else {
                             New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
                             $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-	                        If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
+                            If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
                                 $GoodServer = $Svr
                             } else {
                                 Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
@@ -716,8 +712,8 @@ Function Install-LTService{
                     }
                 } else {
                     Write-Warning "Server address $($Svr) is not formatted correctly. Example: http://labtech.labtechconsulting.com"
-                }
-            }
+                }#End If
+            }#End If
         }#End Foreach
     }#End Process
   
