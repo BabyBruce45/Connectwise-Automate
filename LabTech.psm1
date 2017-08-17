@@ -29,7 +29,7 @@
     
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
-if ((Get-WmiObject -Class Win32_OperatingSystem).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
+if ((Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
 $ModuleVersion = "1.3"
@@ -946,7 +946,7 @@ Function Reinstall-LTService{
         Write-Host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
         Write-Verbose "Starting: Uninstall-LTService -Server $($ServerList -join ',')"
         Try{
-            Uninstall-LTService -Server $serverlist
+            Uninstall-LTService -Server $serverlist -ErrorAction Stop
         }#End Try
     
         Catch{
