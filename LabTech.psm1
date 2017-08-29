@@ -29,7 +29,7 @@
     
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
-if ((Get-WmiObject -Class Win32_OperatingSystem).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
+if ((Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
 $ModuleVersion = "1.3"
@@ -56,7 +56,7 @@ Function Get-LTServiceInfo{
     This function will pull all of the registry data into an object.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -64,6 +64,9 @@ Function Get-LTServiceInfo{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+    
+    Update Date: 8/24/2017
+    Purpose/Change: Update to use Clear-Variable.
     
 .LINK
     http://labtechconsulting.com
@@ -73,7 +76,7 @@ Function Get-LTServiceInfo{
       
   Begin
   {
-    Remove-Variable key,BasePath,exclude,Servers -EA 0 #Clearing Variables for use
+    Clear-Variable key,BasePath,exclude,Servers -EA 0 #Clearing Variables for use
     Write-Verbose "Starting Get-LTServiceInfo"
 
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
@@ -357,7 +360,7 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -372,6 +375,9 @@ Function Uninstall-LTService{
     Update Date: 6/24/2017
     Purpose/Change: Update to detect Server Version and use updated URL format for LabTech 11 Patch 13.
     
+    Update Date: 8/24/2017
+    Purpose/Change: Update to use Clear-Variable. Modifications to Folder and Registry Delete steps. Additional Debugging.
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -382,7 +388,7 @@ Function Uninstall-LTService{
         [switch]$Backup = $False
     )   
     Begin{
-        Remove-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 #Clearing Variables for use
+        Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 #Clearing Variables for use
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
             Throw "Needs to be ran as Administrator" 
         }
@@ -516,6 +522,7 @@ Function Uninstall-LTService{
                     Write-Verbose "Server address $($Svr) is not formatted correctly. Example: https://lt.domain.com"
                 }
             } else {
+                Write-Debug "Server $($GoodServer) has been selected."
                 Write-Verbose "Server has already been selected - Skipping $($Svr)."
             }
         }#End Foreach
@@ -547,18 +554,25 @@ Function Uninstall-LTService{
                 Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
                 Start-Sleep -Seconds 5
 
-                #Remove %ltsvcdir%
-                Remove-Item -Recurse -Force $BasePath -ErrorAction SilentlyContinue
-                Remove-Item -Recurse -Force "$env:windir\temp\_ltudpate" -ErrorAction SilentlyContinue
+                #Remove %ltsvcdir% - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
+                @($BasePath, "$env:windir\temp\_ltudpate") | foreach-object {
+                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.psiscontainer) }  | Sort-Object { $_.name.length } -Descending | Remove-Item –Force -ErrorAction SilentlyContinue 
+                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item –Force -ErrorAction SilentlyContinue -Recurse
+                    Remove-Item -Recurse -Force -Path $_ -ErrorAction SilentlyContinue
+                    Write-Debug "Removing Item: $($_)"
+                }
 
-                #Remove all registry keys
+                #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
                 foreach ($reg in $regs) {
-                    Remove-Item -Recurse -Path $reg -ErrorAction SilentlyContinue
+                    Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item –Force -ErrorAction SilentlyContinue -Recurse
+                    Remove-Item -Recurse -Force -Path $reg -ErrorAction SilentlyContinue
+                    Write-Debug "Removing Item: $($reg)"
                 }
 
                 #Remove Services
                 @('LTService','LTSvcMon') | ForEach-Object {
-                            if (Get-Service $_ -ea 0) {Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait}
+                    if (Get-Service $_ -ea 0) {Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait}
+                    Write-Debug "Removing Service: $($_)"
                 }
 
                 #Post Uninstall Check
@@ -619,7 +633,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -633,6 +647,9 @@ Function Install-LTService{
     
     Update Date: 6/24/2017
     Purpose/Change: Update to detect Server Version and use updated URL format for LabTech 11 Patch 13.
+
+    Update Date: 8/24/2017
+    Purpose/Change: Update to use Clear-Variable. Additional Debugging.
     
 .LINK
     http://labtechconsulting.com
@@ -651,7 +668,7 @@ Function Install-LTService{
     )
 
     Begin{
-        Remove-Variable DotNET,OSVersion,PasswordArg,Result,logpath,logfile,curlog,installer,installerTest,installerResult,GoodServer,Svr,SVer,SvrVer,SvrVerCheck,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
+        Clear-Variable DotNET,OSVersion,PasswordArg,Result,logpath,logfile,curlog,installer,installerTest,installerResult,GoodServer,Svr,SVer,SvrVer,SvrVerCheck,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
 
         if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
             Write-Error "LabTech is already installed." -ErrorAction Stop
@@ -761,6 +778,7 @@ Function Install-LTService{
                     Write-Warning "Server address $($Svr) is not formatted correctly. Example: https://lt.domain.com"
                 }
             } else {
+                Write-Debug "Server $($GoodServer) has been selected."
                 Write-Verbose "Server has already been selected - Skipping $($Svr)."
             }
         }#End Foreach
@@ -775,6 +793,7 @@ Function Install-LTService{
                 Write-Warning "Previous install detected. Calling Uninstall-LTService"
                 Uninstall-LTService -Server $GoodServer
             }
+
             Write-Output "Starting Install."
             $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
 
@@ -787,7 +806,7 @@ Function Install-LTService{
                 Do {
                     Write-Host -NoNewline '.'
                     Start-Sleep 2
-                       $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
+                    $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
                 } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
                 $sw.Stop()
                 Write-Verbose "Completed wait for LabTech Installation after $($sw.Elapsed.Seconds.ToString()) seconds."
@@ -864,7 +883,7 @@ Function Reinstall-LTService{
     This will ReInstall the LabTech agent using the provided server URL to download the installation files.
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -878,6 +897,9 @@ Function Reinstall-LTService{
     
     Update Date: 6/10/2017
     Purpose/Change: Updates for pipeline input, support for multiple servers
+    
+    Update Date: 8/24/2017
+    Purpose/Change: Update to use Clear-Variable.
     
 .LINK
     http://labtechconsulting.com
@@ -897,7 +919,7 @@ Function Reinstall-LTService{
     )
            
     Begin{
-        Remove-Variable PasswordArg, RenameArg, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
+        Clear-Variable PasswordArg, RenameArg, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
         $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
         if (-not ($Settings)){
@@ -946,7 +968,7 @@ Function Reinstall-LTService{
         Write-Host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
         Write-Verbose "Starting: Uninstall-LTService -Server $($ServerList -join ',')"
         Try{
-            Uninstall-LTService -Server $serverlist
+            Uninstall-LTService -Server $serverlist -ErrorAction Stop
         }#End Try
     
         Catch{
@@ -1296,7 +1318,7 @@ Function Test-LTPorts{
     This will return a bool for connectivity to the Server
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1311,6 +1333,9 @@ Function Test-LTPorts{
     Update Date: 6/10/2017
     Purpose/Change: Updates for pipeline input, support for multiple servers
 
+    Update Date: 8/24/2017
+    Purpose/Change: Update to use Clear-Variable.
+    
 .LINK
     http://labtechconsulting.com
 #>
@@ -1323,7 +1348,7 @@ Function Test-LTPorts{
     )
 
     Begin{
-        Function TestPort{
+        Function Private:TestPort{
         Param(
             [parameter(ParameterSetName='ComputerName', Position=0)]
             [string]
@@ -1359,7 +1384,7 @@ Function Test-LTPorts{
 
     }#End Function TestPort
 
-        Remove-Variable CleanSvr,svr,proc,processes,port,netstat,line -EA 0 #Clearing Variables for use
+        Clear-Variable CleanSvr,svr,proc,processes,port,netstat,line -EA 0 #Clearing Variables for use
 
         if (-not ($Quiet)){
             #Learn LTTrayPort if available.
@@ -1594,7 +1619,7 @@ Function New-LTServiceBackup {
     This will also backup those files to "$((Get-LTServiceInfo).BasePath)Backup"
 
 .NOTES
-    Version:        1.2
+    Version:        1.3
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  5/11/2017
@@ -1606,6 +1631,9 @@ Function New-LTServiceBackup {
     Update Date: 6/7/2017
     Purpose/Change: Updated error handling.
     
+    Update Date: 8/24/2017
+    Purpose/Change: Update to use Clear-Variable.
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1613,7 +1641,7 @@ Function New-LTServiceBackup {
     Param ()
       
   Begin{
-    Remove-Variable LTPath,BackupPath,Keys,Path,Result,Reg,RegPath -EA 0 #Clearing Variables for use
+    Clear-Variable LTPath,BackupPath,Keys,Path,Result,Reg,RegPath -EA 0 #Clearing Variables for use
     $LTPath = "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)"
     if (-not ($LTPath)) {
       Write-Error "ERROR: Unable to find LTSvc folder path." -ErrorAction Stop
@@ -1773,5 +1801,3 @@ Function Rename-LTAddRemove{
 }#End Function Rename-LTAddRemove
 
 #endregion Functions
-
-
