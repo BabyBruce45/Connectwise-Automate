@@ -98,7 +98,7 @@ Function Get-LTServiceInfo{
                     }
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
         }
-          $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key|Select-object -Expand BasePath -EA 0)
+          $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0))
         if (($key|Get-Member|Where {$_.Name -match 'Server Address'})) {
         $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|Foreach {$_.Trim()}
         Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
@@ -792,7 +792,7 @@ Function Install-LTService{
             }
 
             Write-Output "Starting Install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $($logpath\$logfile.log)"
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
 
             Try{
                 Write-Verbose "Launching Installation Process: msiexec.exe $($iarg)"
@@ -815,7 +815,7 @@ Function Install-LTService{
             }#End Catch
 
             $tmpLTSI = Get-LTServiceInfo -EA 0
-            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID')) {
+            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID'})) {
                 if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                     Write-Host ""
                     Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
