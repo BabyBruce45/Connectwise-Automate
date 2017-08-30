@@ -1315,7 +1315,7 @@ Function Test-LTPorts{
     This will return a bool for connectivity to the Server
 
 .NOTES
-    Version:        1.4
+    Version:        1.5
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1332,6 +1332,9 @@ Function Test-LTPorts{
 
     Update Date: 8/24/2017
     Purpose/Change: Update to use Clear-Variable.
+    
+    Update Date: 8/29/2017
+    Purpose/Change: Added Server Address Format Check
     
 .LINK
     http://labtechconsulting.com
@@ -1411,26 +1414,31 @@ Function Test-LTPorts{
             Write-Verbose 'No Server Input - Checking for names.'
             $Server = Get-LTServiceInfo -EA 0|Select-Object -Expand 'Server'
         }
-    foreach ($svr in $Server) {
-            if ($Quiet){
-                Test-Connection $Svr -Quiet
-                return
-            }
+        foreach ($svr in $Server) {
+                if ($Quiet){
+                    Test-Connection $Svr -Quiet
+                    return
+                }
 
-            Try{
-                $CleanSvr = ($Svr -replace("(http|https)://",'')|Foreach {$_.Trim()})
-                Write-Output "Testing connectivity to required TCP ports"
-                TestPort -ComputerName $CleanSvr -Port 70
-                TestPort -ComputerName $CleanSvr -Port 80
-                TestPort -ComputerName $CleanSvr -Port 443
-                TestPort -ComputerName mediator.labtechsoftware.com -Port 8002
+                if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                    Try{
+                        $CleanSvr = ($Svr -replace("(http|https)://",'')|Foreach {$_.Trim()})
+                        Write-Output "Testing connectivity to required TCP ports"
+                        TestPort -ComputerName $CleanSvr -Port 70
+                        TestPort -ComputerName $CleanSvr -Port 80
+                        TestPort -ComputerName $CleanSvr -Port 443
+                        TestPort -ComputerName mediator.labtechsoftware.com -Port 8002
 
-            }#End Try
+                    }#End Try
 
-            Catch{
-              Write-Error "ERROR: There was an error testing the ports. $($Error[0])" -ErrorAction Stop
-            }#End Catch
-        }#End Foreach
+                    Catch{
+                      Write-Error "ERROR: There was an error testing the ports. $($Error[0])" -ErrorAction Stop
+                    }#End Catch
+                } else {
+                    Write-Warning "Server address $($Svr) is not a valid address or is not formatted correctly. Example: https://lt.domain.com"
+                }#End If
+                
+            }#End Foreach
       }#End Process
   
       End{
