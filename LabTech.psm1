@@ -437,7 +437,7 @@ Function Uninstall-LTService{
 
         New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
 
-        $xarg = "/x $installer /qn"
+        $xarg = "/x `"$($env:windir)\temp\LabTech\Installer\Agent_Install.msi`" /qn"
     }#End Begin
   
     Process{
@@ -535,8 +535,7 @@ Function Uninstall-LTService{
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
                     if ($Executables) {
-                Write-Debug "Server $($GoodServer) has been selected."
-                    Write-Verbose "Terminating LabTech Processes for if running: $($Executables)"
+                    Write-Verbose "Terminating LabTech Processes if found running: $($Executables)"
                     ForEach($Item in $Executables){
                             Write-Debug "Terminating Process $($Item)"
                             Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
@@ -546,20 +545,28 @@ Function Uninstall-LTService{
                     #Unregister DLL
                     regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
                 }#End If     
-            
-                #Run MSI uninstaller for current installer
-                Write-Verbose "Launching Uninstall: msiexec $($xarg)"
-                Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
-                Start-Sleep -Seconds 5
 
-                #Run Agent_Uninstall.exe
-                Write-Verbose "Launching $($env:windir)\temp\Agent_Uninstall.exe"
-                Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
-                Start-Sleep -Seconds 5
+                If ((Test-Path "$($env:windir)\temp\LabTech\Installer\Agent_Install.msi")) {
+                    #Run MSI uninstaller for current installer
+                    Write-Verbose "Launching Uninstall: msiexec.exe $($xarg)"
+                    Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
+                    Start-Sleep -Seconds 5
+                } else {
+                    Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
+                }
+
+                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
+                    #Run Agent_Uninstall.exe
+                    Write-Verbose "Launching $($env:windir)\temp\Agent_Uninstall.exe"
+                    Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
+                    Start-Sleep -Seconds 5
+                } else {
+                    Write-Verbose "WARNING: $($env:windir)\temp\Agent_Uninstall.exe was not found."
+                }
 
                 Write-Verbose "Cleaning Registry Keys and Files remaining if found."
                 #Remove %ltsvcdir% - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
-                @($BasePath, "$env:windir\temp\_ltudpate") | foreach-object {
+                @($BasePath, "$($env:windir)\temp\_ltudpate") | foreach-object {
                     Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.psiscontainer) }  | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue 
                     Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse
                     Remove-Item -Recurse -Force -Path $_ -ErrorAction SilentlyContinue
@@ -816,7 +823,7 @@ Function Install-LTService{
                     $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
                 } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
                 $sw.Stop()
-                Write-Verbose "Completed wait for LabTech Installation after $($sw.Elapsed.TotalSeconds.ToString()) seconds."
+                Write-Verbose "Completed wait for LabTech Installation after $([int32]$sw.Elapsed.TotalSeconds.ToString()) seconds."
                 If ($Hide) {Hide-LTAddRemove}
             }#End Try
 
