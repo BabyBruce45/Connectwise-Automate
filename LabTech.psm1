@@ -236,7 +236,7 @@ Function Stop-LTService{
     Begin{
         Clear-Variable sw,timeout,svcRun -EA 0 #Clearing Variables for use
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
+            Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
         }
     }#End Begin
 
@@ -255,9 +255,7 @@ Function Stop-LTService{
             Write-Host ""
             $sw.Stop()
             if ($svcRun -gt 0) {
-                Write-Host "Terminating Processes after $([int32]$sw.Elapsed.TotalSeconds.ToString()) seconds."
-            } else {
-                Write-Host "Services stopped Successfully. Terminating Remaining Processes if found."
+                Write-Verbose "Services did not stop. Terminating Processes after $([int32]$sw.Elapsed.TotalSeconds.ToString()) seconds."
             }
             Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
         }#End Try
@@ -307,7 +305,7 @@ Function Start-LTService{
    
     Begin{
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
+            Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
         }
         #Kill all processes that are using the tray port 
         [array]$processes = @()
@@ -552,11 +550,11 @@ Function Uninstall-LTService{
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
                     if ($Executables) {
-                    Write-Verbose "Terminating LabTech Processes if found running: $($Executables)"
-                    ForEach($Item in $Executables){
-                            Write-Debug "Terminating Process $($Item)"
-                            Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
-                        }
+						Write-Verbose "Terminating LabTech Processes if found running: $($Executables)"
+						Get-Process | Where-Object {$Executables -contains $_.ProcessName } | ForEach-Object {
+							Write-Debug "Terminating Process $($_.ProcessName)"
+							$($_) | Stop-Process -Force -ErrorAction SilentlyContinue
+						}
                     }
 
                     #Unregister DLL
@@ -581,28 +579,36 @@ Function Uninstall-LTService{
                     Write-Verbose "WARNING: $($env:windir)\temp\Agent_Uninstall.exe was not found."
                 }
 
-                Write-Verbose "Cleaning Registry Keys and Files remaining if found."
-                #Remove %ltsvcdir% - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
-                @($BasePath, "$($env:windir)\temp\_ltudpate") | foreach-object {
-                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.psiscontainer) }  | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue 
-                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse
-                    Remove-Item -Recurse -Force -Path $_ -ErrorAction SilentlyContinue
-                    Write-Debug "Removing Item: $($_)"
-                }
-
-                #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
-                foreach ($reg in $regs) {
-                    Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse
-                    Remove-Item -Recurse -Force -Path $reg -ErrorAction SilentlyContinue
-                    Write-Debug "Removing Item: $($reg)"
-                }
-
+                Write-Verbose "Removing Services if found."
                 #Remove Services
                 @('LTService','LTSvcMon') | ForEach-Object {
-                    if (Get-Service $_ -ea 0) {Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait}
-                    Write-Debug "Removing Service: $($_)"
+                    if (Get-Service $_ -EA 0) {
+						Write-Debug "Removing Service: $($_)"
+						Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait
+					}
                 }
 
+                Write-Verbose "Cleaning Files remaining if found."
+                #Remove %ltsvcdir% - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
+                @($BasePath, "$($env:windir)\temp\_ltupdate", "$($env:windir)\temp\_ltudpate") | foreach-object {
+                    If ((Test-Path "$($_)" -EA 0)) {
+						Write-Debug "Removing Item: $($_)"
+						Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.psiscontainer) } | foreach-object { Get-ChildItem -Path "$($_.FullName)" -EA 0 | Where-Object { -not ($_.psiscontainer) } | Remove-Item -Force -ErrorAction SilentlyContinue }
+						Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.psiscontainer) } | Sort-Object { $_.fullname.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse
+						Remove-Item -Recurse -Force -Path $_ -ErrorAction SilentlyContinue
+					}
+                }
+
+                Write-Verbose "Cleaning Registry Keys if found."
+                #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
+                foreach ($reg in $regs) {
+                    If ((Test-Path "$($reg)" -EA 0)) {
+						Write-Debug "Removing Item: $($reg)"
+						Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+						Remove-Item -Recurse -Force -Path $reg -ErrorAction SilentlyContinue
+					}
+                }
+				
                 #Post Uninstall Check
                 if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
                     Start-Sleep -Seconds 10
@@ -1060,7 +1066,7 @@ Function Get-LTError{
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
-            Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
+            Write-Error "ERROR: Unable to find log. $($Error[0])" -ErrorAction Stop
         }
     }#End Begin
   
@@ -1148,7 +1154,7 @@ Function Reset-LTService{
     
     Begin{
         if (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: LabTech Services NOT Found" $($Error[0]) -ErrorAction Stop
+            Write-Error "ERROR: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
         }
         $Reg = 'HKLM:\Software\LabTech\Service'
         if (!($ID -or $LocationID -or $MAC)){
@@ -1628,7 +1634,7 @@ Function Get-LTProbeErrors {
         $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
-            Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
+            Write-Error "ERROR: Unable to find log. $($Error[0])" -ErrorAction Stop
         }
     }#End Begin
     process{
