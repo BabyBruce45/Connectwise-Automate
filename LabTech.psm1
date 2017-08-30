@@ -564,9 +564,9 @@ Function Uninstall-LTService{
 
                 #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
                 foreach ($reg in $regs) {
-                    Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -“Force -ErrorAction SilentlyContinue -Recurse
+                    Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse
                     Remove-Item -Recurse -Force -Path $reg -ErrorAction SilentlyContinue
-                    Write-Debug "Removing Item: $($reg)
+                    Write-Debug "Removing Item: $($reg)"
                 }
 
                 #Remove Services
