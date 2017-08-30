@@ -233,29 +233,46 @@ Function Stop-LTService{
     [CmdletBinding()]
     Param()
   
-  Begin{
-    if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-        Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
-    }
-  }#End Begin
-  
-  Process{
-    Try{
-        Stop-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue
-        Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
-    }#End Try
-    
-    Catch{
-        Write-Error "ERROR: There was an error stopping the LabTech processes. $($Error[0])" -ErrorAction Stop
-    }#End Catch
-  }#End Process
-  
-  End{
-    If ($?){
-        Write-Output "Services Stopped successfully."
-    }
-    Else {$Error[0]}
-  }#End End
+    Begin{
+        Clear-Variable sw,timeout,svcRun -EA 0 #Clearing Variables for use
+        if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+            Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
+        }
+    }#End Begin
+
+    Process{
+        Try{
+            Write-Verbose "Stopping Labtech Services"
+            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue -NoWait
+            $timeout = new-timespan -Minutes 2
+            $sw = [diagnostics.stopwatch]::StartNew()
+            Write-Host -NoNewline "Waiting for Services to Stop." 
+            Do {
+                Write-Host -NoNewline '.'
+                Start-Sleep 2
+                $svcRun = ('LTService','LTSvcMon') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Stopped'} | Measure-Object | Select-Object -Expand Count
+            } until ($sw.elapsed -gt $timeout -or $svcRun -eq 0)
+            Write-Host ""
+            $sw.Stop()
+            if ($svcRun -gt 0) {
+                Write-Host "Terminating Processes after $([int32]$sw.Elapsed.TotalSeconds.ToString()) seconds."
+            } else {
+                Write-Host "Services stopped Successfully. Terminating Remaining Processes if found."
+            }
+            Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
+        }#End Try
+
+        Catch{
+            Write-Error "ERROR: There was an error stopping the LabTech processes. $($Error[0])" -ErrorAction Stop
+        }#End Catch
+    }#End Process
+
+    End{
+        If ($?){
+            Write-Output "Services Stopped successfully."
+        }
+        Else {$Error[0]}
+    }#End End
 }#End Function Stop-LTService
 
 Function Start-LTService{
