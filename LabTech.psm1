@@ -295,26 +295,25 @@ Function Start-LTService{
         #Kill all processes that are using the tray port 
         [array]$processes = @()
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
-    if (-not ($Port)) {$Port = "42000"}
-
+        if (-not ($Port)) {$Port = "42000"}
     }#End Begin
   
     Process{
         Try{
-          $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
-          foreach ($line in $netstat){
-              $processes += ($line -split '  {3,}')[-1]
-          }
-          $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-          if ($processes) {
-          foreach ($proc in $processes){
-                  Write-Output "Process ID:$proc is using port $Port. Killing process."
-                  Stop-Process -ID $proc -Force -Verbose
-          }
-          }
-          @('LTService','LTSvcMon') | ForEach-Object {
-                      if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
-          }
+            $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
+            foreach ($line in $netstat){
+                $processes += ($line -split '  {3,}')[-1]
+            }
+            $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
+            if ($processes) {
+          	    foreach ($proc in $processes){
+                    Write-Output "Process ID:$proc is using port $Port. Killing process."
+                    Stop-Process -ID $proc -Force -Verbose
+                }
+            }
+            @('LTService','LTSvcMon') | ForEach-Object {
+                if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
+            }
         }#End Try
     
         Catch{
@@ -385,6 +384,7 @@ Function Uninstall-LTService{
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [string[]]$Server,
+        [Parameter(ValueFromPipelineByPropertyName = $true)]
         [switch]$Backup = $False
     )   
     Begin{
@@ -395,43 +395,41 @@ Function Uninstall-LTService{
         if ($Backup){
             New-LTServiceBackup
         }
-
         $BasePath = $(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
-
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\Service',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\LabVNC',
-          'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech\Service',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{3426921d-9ad5-4237-9145-f15dee7e3004}',
-          'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\Appmgmt\{40bf8c82-ed0d-4f66-b73e-58a3d7ab6582}',
-          'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3426921d-9ad5-4237-9145-f15dee7e3004}',
-          'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
-          'Registry::HKEY_CLASSES_ROOT\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
-          'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{09DF1DCA-C076-498A-8370-AD6F878B6C6A}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{15DD3BF6-5A11-4407-8399-A19AC10C65D0}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{3C198C98-0E27-40E4-972C-FDC656EC30D7}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{459C65ED-AA9C-4CF1-9A24-7685505F919A}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{7BE3886B-0C12-4D87-AC0B-09A5CE4E6BD6}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{7E092B5C-795B-46BC-886A-DFFBBBC9A117}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{9D101D9C-18CC-4E78-8D78-389E48478FCA}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{B0B8CDD6-8AAA-4426-82E9-9455140124A1}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{B1B00A43-7A54-4A0F-B35D-B4334811FAA4}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{BBC521C8-2792-43FE-9C91-CCA7E8ACBCC9}',
-          'Registry::HKEY_CLASSES_ROOT\CLSID\{C59A1D54-8CD7-4795-AEDD-F6F6E2DE1FE7}',
-          'Registry::HKEY_CLASSES_ROOT\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
-          'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
-          'Registry::HKEY_CURRENT_USER\SOFTWARE\LabTech\Service',
-          'Registry::HKEY_CURRENT_USER\SOFTWARE\LabTech\LabVNC',
-          'Registry::HKEY_CURRENT_USER\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
-          'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F'
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\Service',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\LabTech\LabVNC',
+            'Registry::HKEY_LOCAL_MACHINE\Software\Wow6432Node\LabTech\Service',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\D1003A85576B76D45A1AF09A0FC87FAC\InstallProperties',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{3426921d-9ad5-4237-9145-f15dee7e3004}',
+            'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\Appmgmt\{40bf8c82-ed0d-4f66-b73e-58a3d7ab6582}',
+            'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3426921d-9ad5-4237-9145-f15dee7e3004}',
+            'Registry::HKEY_CLASSES_ROOT\Installer\Dependencies\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
+            'Registry::HKEY_CLASSES_ROOT\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+            'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{09DF1DCA-C076-498A-8370-AD6F878B6C6A}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{15DD3BF6-5A11-4407-8399-A19AC10C65D0}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{3C198C98-0E27-40E4-972C-FDC656EC30D7}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{459C65ED-AA9C-4CF1-9A24-7685505F919A}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{7BE3886B-0C12-4D87-AC0B-09A5CE4E6BD6}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{7E092B5C-795B-46BC-886A-DFFBBBC9A117}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{9D101D9C-18CC-4E78-8D78-389E48478FCA}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{B0B8CDD6-8AAA-4426-82E9-9455140124A1}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{B1B00A43-7A54-4A0F-B35D-B4334811FAA4}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{BBC521C8-2792-43FE-9C91-CCA7E8ACBCC9}',
+            'Registry::HKEY_CLASSES_ROOT\CLSID\{C59A1D54-8CD7-4795-AEDD-F6F6E2DE1FE7}',
+            'Registry::HKEY_CLASSES_ROOT\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+            'Registry::HKEY_CLASSES_ROOT\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC',
+            'Registry::HKEY_CURRENT_USER\SOFTWARE\LabTech\Service',
+            'Registry::HKEY_CURRENT_USER\SOFTWARE\LabTech\LabVNC',
+            'Registry::HKEY_CURRENT_USER\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+            'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F'
         )
 
         #Cleanup previous uninstallers
@@ -444,7 +442,7 @@ Function Uninstall-LTService{
   
     Process{
         if (-not ($Server)){
-          $Server = Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand 'Server' -EA 0
+            $Server = Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand 'Server' -EA 0
         }
         if (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
@@ -527,7 +525,7 @@ Function Uninstall-LTService{
             }
         }#End Foreach
     }#End Process
-  
+
     End{
         if ($GoodServer) {
             Try{
@@ -544,7 +542,7 @@ Function Uninstall-LTService{
 
                     #Unregister DLL
                     regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
-                }     
+                }#End If     
             
                 #Run MSI uninstaller for current installer
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
@@ -725,12 +723,11 @@ Function Install-LTService{
             $curlog = Get-Item -Path $curlog
             Rename-Item -Path $($curlog.FullName) -NewName "$($logfile)-$(Get-Date $($curlog.LastWriteTime) -Format 'yyyyMMddHHmmss').log" -Force
         }#End if
-
     }#End Begin
   
     Process{
         Foreach ($Svr in $Server) {
-        if (-not ($GoodServer)) {
+            if (-not ($GoodServer)) {
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
                     Try {
@@ -761,13 +758,13 @@ Function Install-LTService{
                         } else {
                             Write-Debug "Downloading Agent_Install.msi from $installer"
                             $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-                        }
-                        If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
-                            $GoodServer = $Svr
-                            Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
-                        } else {
-                            Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
-                            Continue
+                            If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
+                                $GoodServer = $Svr
+                                Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
+                            } else {
+                                Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
+                                Continue
+                            }
                         }
                     }
                     Catch {
@@ -795,7 +792,7 @@ Function Install-LTService{
             }
 
             Write-Output "Starting Install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
+            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $($logpath\$logfile.log)"
 
             Try{
                 Write-Verbose "Launching Installation Process: msiexec.exe $($iarg)"
