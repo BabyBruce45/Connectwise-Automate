@@ -556,15 +556,15 @@ Function Uninstall-LTService{
 
                 #Remove %ltsvcdir% - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
                 @($BasePath, "$env:windir\temp\_ltudpate") | foreach-object {
-                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.psiscontainer) }  | Sort-Object { $_.name.length } -Descending | Remove-Item –Force -ErrorAction SilentlyContinue 
-                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item –Force -ErrorAction SilentlyContinue -Recurse
+                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.psiscontainer) }  | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue 
+                    Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse
                     Remove-Item -Recurse -Force -Path $_ -ErrorAction SilentlyContinue
                     Write-Debug "Removing Item: $($_)"
                 }
 
                 #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
                 foreach ($reg in $regs) {
-                    Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item –Force -ErrorAction SilentlyContinue -Recurse
+                    Get-ChildItem -Path $reg -Recurse -Force -ErrorAction SilentlyContinue | Sort-Object { $_.name.length } -Descending | Remove-Item -�Force -ErrorAction SilentlyContinue -Recurse
                     Remove-Item -Recurse -Force -Path $reg -ErrorAction SilentlyContinue
                     Write-Debug "Removing Item: $($reg)
                 }
