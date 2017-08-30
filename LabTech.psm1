@@ -546,6 +546,8 @@ Function Uninstall-LTService{
             Try{
                 Write-Output "Starting Uninstall."
 
+				try { Stop-LTService -ErrorAction SilentlyContinue } catch {}
+				
                 #Kill all running processes from %ltsvcdir%   
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
