@@ -29,7 +29,7 @@
     
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
-if ((Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
+if ((Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue|Select-object -Expand OSArchitecture -EA 0) -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
 $ModuleVersion = "1.3"
@@ -92,13 +92,13 @@ Function Get-LTServiceInfo{
         $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select * -exclude $exclude
         if (-not ($key|Get-Member|Where {$_.Name -match 'BasePath'})) {
                 if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
-                        $BasePath = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop).ImagePath.Split('"')|Where {$_}|Select -First 1|Get-Item).DirectoryName
+                        $BasePath = (Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop|Select-object -Expand ImagePath -EA 0).Split('"')|Where {$_}|Select -First 1|Get-Item|Select-object -Expand DirectoryName -EA 0
                     } Else {
                         $BasePath = "$env:windir\LTSVC" 
                     }
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
         }
-          $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath)
+          $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key|Select-object -Expand BasePath -EA 0)
         if (($key|Get-Member|Where {$_.Name -match 'Server Address'})) {
         $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|Foreach {$_.Trim()}
         Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
@@ -187,7 +187,7 @@ Function Restart-LTService{
   
   Begin{
     if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-        Write-Error "ERROR: Services NOT Found" $($Error[0]) -ErrorAction Stop
+        Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
     }
   }#End Begin
   
@@ -389,7 +389,7 @@ Function Uninstall-LTService{
     )   
     Begin{
         Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 #Clearing Variables for use
-        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
+        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
             Throw "Needs to be ran as Administrator" 
         }
         if ($Backup){
@@ -672,7 +672,7 @@ Function Install-LTService{
             Write-Error "LabTech is already installed." -ErrorAction Stop
         }
 
-        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()).groups -match "S-1-5-32-544"))) {
+        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand Groups -EA 0) -match "S-1-5-32-544"))) {
             Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
         }
         
@@ -681,7 +681,7 @@ Function Install-LTService{
         {
             Write-Output ".NET 3.5 installation needed."
             #Install-WindowsFeature Net-Framework-Core
-            $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem).version
+            $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem|Select-object -Expand Version -EA 0)
 
             if ($OSVersion -gt 6.2){
                 try{
@@ -815,7 +815,7 @@ Function Install-LTService{
             }#End Catch
 
             $tmpLTSI = Get-LTServiceInfo -EA 0
-            if (($tmpLTSI)) {
+            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID')) {
                 if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                     Write-Host ""
                     Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
@@ -1023,7 +1023,7 @@ Function Get-LTError{
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
@@ -1122,7 +1122,7 @@ Function Reset-LTService{
             $Location=$true
             $MAC=$true
         }
-        Write-Output "OLD ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID) MAC: $((Get-LTServiceInfo).MAC)"
+        Write-Output "OLD ID: $(Get-LTServiceInfo|Select-object -Expand ID -EA 0) LocationID: $(Get-LTServiceInfo|Select-object -Expand LocationID -EA 0) MAC: $(Get-LTServiceInfo|Select-object -Expand MAC -EA 0)"
         
     }#End Begin
   
@@ -1144,7 +1144,7 @@ Function Reset-LTService{
             Start-LTService
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
-            While (!(Get-LTServiceInfo).ID -or !(Get-LTServiceInfo).LocationID -or !(Get-LTServiceInfo).MAC -and $sw.elapsed -lt $timeout){
+            While (!(Get-LTServiceInfo|Select-object -Expand ID -EA 0) -or !(Get-LTServiceInfo|Select-object -Expand LocationID -EA 0) -or !(Get-LTServiceInfo|Select-object -Expand MAC -EA 0) -and $($sw.elapsed) -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -1159,7 +1159,7 @@ Function Reset-LTService{
     End{
         if ($?){
             Write-Output ""
-            Write-Output "NEW ID: $((Get-LTServiceInfo).ID) LocationID: $((Get-LTServiceInfo).LocationID) MAC: $((Get-LTServiceInfo).MAC)"
+            Write-Output "NEW ID: $(Get-LTServiceInfo|Select-object -Expand ID -EA 0) LocationID: $(Get-LTServiceInfo|Select-object -Expand LocationID -EA 0) MAC: $(Get-LTServiceInfo|Select-object -Expand MAC -EA 0)"
         }
         Else {$Error[0]}
     }#End End
@@ -1276,8 +1276,8 @@ Function Show-LTAddRemove{
                     $RegImport | Out-File "$env:TEMP\LT.reg" -Force
                     Start-Process -Wait -FilePath reg -ArgumentList "import $($env:TEMP)\LT.reg"
                     Remove-Item "$env:TEMP\LT.reg" -Force
-                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
-                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$(((Get-LTServiceInfo).'Server Address').Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$((Get-LTServiceInfo|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$((Get-LTServiceInfo|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
                 }
             }
         }#End Try
@@ -1386,7 +1386,7 @@ Function Test-LTPorts{
         if (-not ($Quiet)){
             #Learn LTTrayPort if available.
             $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
-        if (-not ($Port) -or $Port -notmatch '^\d+$') {$Port=42000}
+            if (-not ($Port) -or $Port -notmatch '^\d+$') {$Port=42000}
             [array]$processes = @()
             #Get all processes that are using LTTrayPort (Default 42000)
             $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
@@ -1395,13 +1395,13 @@ Function Test-LTPorts{
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             if ($processes) {
-            foreach ($proc in $processes) {
-            if ((Get-Process -ID $proc -EA 0).ProcessName -eq 'LTSvc') {
-                Write-Output "LTSvc is using port $Port"
-            } else {
-                Write-Output "Error: $((Get-Process -ID $proc).ProcessName) is using port $Port"
-            }
-               }
+                foreach ($proc in $processes) {
+                    if ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
+                        Write-Output "LTSvc is using port $Port"
+                    } else {
+                        Write-Output "Error: $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0) is using port $Port"
+                    }
+                }
             }
         }    
     }#End Begin
@@ -1474,7 +1474,7 @@ Function Get-LTLogging{
   
   Process{
     Try{
-        $Value = (Get-LTServiceSettings).Debuging
+        $Value = (Get-LTServiceSettings|Select-object -Expand Debuging -EA 0)
     }#End Try
     
     Catch{
@@ -1491,7 +1491,7 @@ Function Get-LTLogging{
             Write-Output "Current logging level: Verbose"
         }
         else{
-            Write-Error "ERROR: Unknown Logging level $((Get-LTServiceInfo).Debuging)" -ErrorAction Stop
+            Write-Error "ERROR: Unknown Logging level $(Get-LTServiceInfo|Select-object -Expand Debuging -EA 0)" -ErrorAction Stop
         }
     }    
   }#End End
@@ -1583,7 +1583,7 @@ Function Get-LTProbeErrors {
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue).BasePath
+        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log." $($Error[0]) -ErrorAction Stop
