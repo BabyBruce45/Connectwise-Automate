@@ -795,7 +795,7 @@ Function Install-LTService{
             $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
 
             Try{
-                Write-Verbose "Launching Installation Process: msiexec.exe $($iarg)"
+                Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
@@ -815,7 +815,7 @@ Function Install-LTService{
             }#End Catch
 
             $tmpLTSI = Get-LTServiceInfo -EA 0
-            if (($tmpLTSI|Get-Member|Where {$_.Name -match 'ID'})) {
+            if (($tmpLTSI)) {
                 if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                     Write-Host ""
                     Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
