@@ -535,7 +535,10 @@ Function Uninstall-LTService{
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
                     if ($Executables) {
+                Write-Debug "Server $($GoodServer) has been selected."
+                    Write-Verbose "Terminating LabTech Processes for if running: $($Executables)"
                     ForEach($Item in $Executables){
+                            Write-Debug "Terminating Process $($Item)"
                             Stop-Process -Name $Item -Force -ErrorAction SilentlyContinue
                         }
                     }
@@ -545,13 +548,16 @@ Function Uninstall-LTService{
                 }#End If     
             
                 #Run MSI uninstaller for current installer
+                Write-Verbose "Launching Uninstall: msiexec $($xarg)"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
                 Start-Sleep -Seconds 5
 
                 #Run Agent_Uninstall.exe
+                Write-Verbose "Launching $($env:windir)\temp\Agent_Uninstall.exe"
                 Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
                 Start-Sleep -Seconds 5
 
+                Write-Verbose "Cleaning Registry Keys and Files remaining if found."
                 #Remove %ltsvcdir% - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
                 @($BasePath, "$env:windir\temp\_ltudpate") | foreach-object {
                     Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.psiscontainer) }  | Sort-Object { $_.name.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue 
@@ -631,7 +637,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.4
+    Version:        1.5
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -648,6 +654,9 @@ Function Install-LTService{
 
     Update Date: 8/24/2017
     Purpose/Change: Update to use Clear-Variable. Additional Debugging.
+    
+    Update Date: 8/29/2017
+    Purpose/Change: Additional Debugging.
     
 .LINK
     http://labtechconsulting.com
@@ -720,8 +729,9 @@ Function Install-LTService{
             New-Item "$logpath\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
         }#End if
         if ((Test-Path -PathType Leaf -Path $($curlog))){
-            $curlog = Get-Item -Path $curlog
-            Rename-Item -Path $($curlog.FullName) -NewName "$($logfile)-$(Get-Date $($curlog.LastWriteTime) -Format 'yyyyMMddHHmmss').log" -Force
+            $curlog = Get-Item -Path $curlog -EA 0
+            Rename-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -NewName "$($logfile)-$(Get-Date $($curlog|Select-Object -Expand LastWriteTime-EA 0) -Format 'yyyyMMddHHmmss').log" -Force
+            Remove-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -Force
         }#End if
     }#End Begin
   
@@ -786,7 +796,7 @@ Function Install-LTService{
             $PasswordArg = "SERVERPASS=$ServerPassword"
         }
         if ($GoodServer) {
-            if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+            if((Test-Path $($env:windir)\ltsvc) -or (Test-Path $($env:windir)\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
                 Write-Warning "Previous install detected. Calling Uninstall-LTService"
                 Uninstall-LTService -Server $GoodServer
             }
@@ -806,7 +816,7 @@ Function Install-LTService{
                     $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
                 } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
                 $sw.Stop()
-                Write-Verbose "Completed wait for LabTech Installation after $($sw.Elapsed.Seconds.ToString()) seconds."
+                Write-Verbose "Completed wait for LabTech Installation after $($sw.Elapsed.TotalSeconds.ToString()) seconds."
                 If ($Hide) {Hide-LTAddRemove}
             }#End Try
 
