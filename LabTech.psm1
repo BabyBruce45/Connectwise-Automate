@@ -806,6 +806,7 @@ Function Install-LTService{
             if((Test-Path "$($env:windir)\ltsvc" -EA 0) -or (Test-Path "$($env:windir)\temp\_ltudpate" -EA 0) -or (Test-Path registry::HKLM\Software\LabTech\Service -EA 0) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service -EA 0)){
                 Write-Warning "Previous install detected. Calling Uninstall-LTService"
                 Uninstall-LTService -Server $GoodServer
+                Start-Sleep 10
             }
 
             Write-Output "Starting Install."
@@ -991,7 +992,6 @@ Function Reinstall-LTService{
 
         Start-Sleep 10
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
-
         Try{
             Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename
         }#End Try
