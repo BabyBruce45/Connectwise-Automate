@@ -737,8 +737,8 @@ Function Install-LTService{
         }#End if
         if ((Test-Path -PathType Leaf -Path $($curlog))){
             $curlog = Get-Item -Path $curlog -EA 0
-            Rename-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -NewName "$($logfile)-$(Get-Date $($curlog|Select-Object -Expand LastWriteTime-EA 0) -Format 'yyyyMMddHHmmss').log" -Force
-            Remove-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -Force
+            Rename-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -NewName "$($logfile)-$(Get-Date $($curlog|Select-Object -Expand LastWriteTime -EA 0) -Format 'yyyyMMddHHmmss').log" -Force
+            Remove-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -Force -EA 0
         }#End if
     }#End Begin
   
@@ -803,7 +803,7 @@ Function Install-LTService{
             $PasswordArg = "SERVERPASS=$ServerPassword"
         }
         if ($GoodServer) {
-            if((Test-Path $($env:windir)\ltsvc) -or (Test-Path $($env:windir)\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+            if((Test-Path "$($env:windir)\ltsvc" -EA 0) -or (Test-Path "$($env:windir)\temp\_ltudpate" -EA 0) -or (Test-Path registry::HKLM\Software\LabTech\Service -EA 0) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service -EA 0)){
                 Write-Warning "Previous install detected. Calling Uninstall-LTService"
                 Uninstall-LTService -Server $GoodServer
             }
@@ -990,7 +990,7 @@ Function Reinstall-LTService{
         }#End Catch
 
         Start-Sleep 10
-        Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:$Hide $RenameArg"
+        Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
 
         Try{
             Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename
