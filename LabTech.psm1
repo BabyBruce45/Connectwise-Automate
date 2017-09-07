@@ -29,7 +29,7 @@
     
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
-if ((Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue|Select-object -Expand OSArchitecture -EA 0) -eq '64-bit' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
+if (($ENV:PROCESSOR_ARCHITEW6432) -match '64' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
 $ModuleVersion = "1.3"
@@ -669,7 +669,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.5
+    Version:        1.6
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -690,6 +690,9 @@ Function Install-LTService{
     Update Date: 8/29/2017
     Purpose/Change: Additional Debugging.
     
+    Update Date: 9/7/2017
+    Purpose/Change: Support for ShouldProcess to enable -Confirm and -WhatIf.
+    
 .LINK
     http://labtechconsulting.com
 #> 
@@ -703,34 +706,37 @@ Function Install-LTService{
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [int]$LocationID,
         [string]$Rename = $null,
-        [switch]$Hide = $False
+        [switch]$Hide = $False,
+        [switch]$Force = $False
     )
 
     Begin{
         Clear-Variable DotNET,OSVersion,PasswordArg,Result,logpath,logfile,curlog,installer,installerTest,installerResult,GoodServer,Svr,SVer,SvrVer,SvrVerCheck,iarg,timeout,sw,tmpLTSI -EA 0 #Clearing Variables for use
 
-        if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
-            Write-Error "LabTech is already installed." -ErrorAction Stop
+        if (!($Force)) {
+            if (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
+                Write-Error "LabTech is already installed." -ErrorAction Stop
+            }
+
+            If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand Groups -EA 0) -match "S-1-5-32-544"))) {
+                Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
+            }
         }
 
-        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand Groups -EA 0) -match "S-1-5-32-544"))) {
-            Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
-        }
-        
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
         if (-not ($DotNet -like '3.5.*'))
         {
             Write-Output ".NET 3.5 installation needed."
             #Install-WindowsFeature Net-Framework-Core
-            $OSVersion = [Version](Get-WmiObject Win32_OperatingSystem|Select-object -Expand Version -EA 0)
+            $OSVersion = [System.Environment]::OSVersion.Version
 
-            if ($OSVersion -gt 6.2){
+            if ([version]$OSVersion -gt [version]'6.2'){
                 try{
                     Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All | Out-Null
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
-                    Write-Error $Result -ErrorAction Stop
+                    if (!($Force)) { Write-Error $Result -ErrorAction Stop }
                 }
             }
             else{
@@ -739,8 +745,9 @@ Function Install-LTService{
 
                     Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                 } 
-                Else{
-                    Write-Error "ERROR: .NET 3.5 install failed. $Result" -ErrorAction Stop
+                Else { 
+                    Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
+                    if (!($Force)) { Write-Error $Result -ErrorAction Stop }
                 } 
             }
             
@@ -748,7 +755,17 @@ Function Install-LTService{
         }
 
         if (-not ($DotNet -like '3.5.*')){
-            Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop
+            if (($Force)) {
+                if ($DotNet -like '2.0.*'){
+                    Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Continue
+                }
+                Else {
+                    Write-Error "ERROR: .NET 2.0 is not detected and could not be installed." -ErrorAction Stop
+                }
+            }
+            else {
+                Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
+            }
         }
         if (-not ($LocationID)){
             $LocationID = "1"
