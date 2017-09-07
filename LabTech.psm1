@@ -722,7 +722,7 @@ Function Install-LTService{
         {
             Write-Output ".NET 3.5 installation needed."
             #Install-WindowsFeature Net-Framework-Core
-            $OSVersion = [Version](Get-CimInstance Win32_OperatingSystem|Select-object -Expand Version -EA 0)
+            $OSVersion = [Version](Get-WmiObject Win32_OperatingSystem|Select-object -Expand Version -EA 0)
 
             if ($OSVersion -gt 6.2){
                 try{
