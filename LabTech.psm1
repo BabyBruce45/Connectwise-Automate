@@ -243,7 +243,7 @@ Function Stop-LTService{
     Process{
         Try{
             Write-Verbose "Stopping Labtech Services"
-            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue -NoWait
+            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue
             $timeout = new-timespan -Minutes 2
             $sw = [diagnostics.stopwatch]::StartNew()
             Write-Host -NoNewline "Waiting for Services to Stop." 
