@@ -1224,7 +1224,7 @@ Function Reset-LTService{
         }
         Else {$Error[0]}
     }#End End
-}#End Function Get-LTError
+}#End Function Reset-LTService
 
 Function Hide-LTAddRemove{
 <#
@@ -1619,7 +1619,7 @@ Function Set-LTLogging{
         Get-LTLogging          
     }    
   }#End End
-}#End Function Set-LTSLogging
+}#End Function Set-LTLogging
 
 Function Get-LTProbeErrors {
 <#
