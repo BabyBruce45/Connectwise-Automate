@@ -243,7 +243,9 @@ Function Stop-LTService{
     Process{
         Try{
             Write-Verbose "Stopping Labtech Services"
-            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue
+            
+            # Attempt to stop the services and dont wait. v2 workaround for Stop-Service -NoWait
+            ('LTService','LTSvcMon') | ForEach-Object {sc.exe stop "$($_)" 2>'' | Out-Null }
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
             Write-Host -NoNewline "Waiting for Services to Stop." 
@@ -1222,7 +1224,7 @@ Function Reset-LTService{
         }
         Else {$Error[0]}
     }#End End
-}#End Function Get-LTError
+}#End Function Reset-LTService
 
 Function Hide-LTAddRemove{
 <#
@@ -1617,7 +1619,7 @@ Function Set-LTLogging{
         Get-LTLogging          
     }    
   }#End End
-}#End Function Set-LTSLogging
+}#End Function Set-LTLogging
 
 Function Get-LTProbeErrors {
 <#
