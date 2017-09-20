@@ -243,9 +243,7 @@ Function Stop-LTService{
     Process{
         Try{
             Write-Verbose "Stopping Labtech Services"
-            
-            # Attempt to stop the services and dont wait. v2 workaround for Stop-Service -NoWait
-            ('LTService','LTSvcMon') | ForEach-Object {sc.exe stop "$($_)" 2>'' | Out-Null }
+            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
             Write-Host -NoNewline "Waiting for Services to Stop." 
@@ -734,7 +732,10 @@ Function Install-LTService{
 
             if ([version]$OSVersion -gt [version]'6.2'){
                 try{
-                    Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All | Out-Null
+                    $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
+                    if ($Install.RestartNeeded) {
+                        Write-Output ".NET 3.5 installed but a reboot is needed."
+                    }
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
@@ -743,7 +744,9 @@ Function Install-LTService{
             }
             else{
                 $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
-                If ($Result -contains "State : Enabled"){ 
+                If ($Result -contains "State : Enabled"){
+                    # also check reboot status, unsure of possible outputs
+                    # Restart Required : Possible 
 
                     Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                 } 
