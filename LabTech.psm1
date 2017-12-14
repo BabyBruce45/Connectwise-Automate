@@ -295,6 +295,9 @@ Function Start-LTService{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+
+    Update Date: 12/14/2017
+    Purpose/Change: Will increment the tray port if a conflict is detected.
         
 .LINK
     http://labtechconsulting.com
@@ -302,7 +305,7 @@ Function Start-LTService{
     
     [CmdletBinding()]
     Param()   
-   
+    
     Begin{
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
@@ -312,18 +315,26 @@ Function Start-LTService{
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
         if (-not ($Port)) {$Port = "42000"}
     }#End Begin
-  
+    
     Process{
         Try{
-            $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
+            $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
             foreach ($line in $netstat){
                 $processes += ($line -split '  {3,}')[-1]
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             if ($processes) {
-          	    foreach ($proc in $processes){
+                    foreach ($proc in $processes){
                     Write-Output "Process ID:$proc is using port $Port. Killing process."
-                    Stop-Process -ID $proc -Force -Verbose
+                    try{Stop-Process -ID $proc -Force -Verbose -EA Stop}
+                    catch {
+                        Write-Warning "There was an issue killing the following process: $proc"
+                        Write-Warning "This generally  means that a 'protected application' is using this port."
+                        $newPort = [int]$port + 1
+                        if($newPort > 42009) {$newPort = 42000}
+                        Write-Warning "Setting tray port to $newPort."
+                        New-ItemProperty -Path "HKLM:\Software\Labtech\Service" -Name TrayPort -PropertyType String -Value $newPort -Force | Out-Null
+                    }
                 }
             }
             @('LTService','LTSvcMon') | ForEach-Object {
@@ -335,14 +346,14 @@ Function Start-LTService{
             Write-Error "ERROR: There was an error starting the LabTech services. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
-  
+    
     End
     {
         If ($?){
             Write-Output "Services Started successfully."
         }
         else{
-             $($Error[0])
+                $($Error[0])
         }
     }#End End
 }#End Function Start-LTService
