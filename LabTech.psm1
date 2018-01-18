@@ -675,6 +675,9 @@ Function Install-LTService{
 .PARAMETER Hide
     This will call Hide-LTAddRemove after the install.
 
+.PATAMETER Force
+    This will disable some of the error checking on the install process.
+
 .EXAMPLE
     Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
@@ -1051,7 +1054,7 @@ Function Reinstall-LTService{
         Start-Sleep 10
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
-            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename -Force:$True
+            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide -Force:$True $RenameArg 
         }#End Try
     
         Catch{
