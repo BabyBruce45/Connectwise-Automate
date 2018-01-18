@@ -1054,7 +1054,7 @@ Function Reinstall-LTService{
         Start-Sleep 10
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
-            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide -Force:$True $RenameArg 
+            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Force -Hide:$Hide $RenameArg 
         }#End Try
     
         Catch{
