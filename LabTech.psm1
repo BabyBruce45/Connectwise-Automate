@@ -753,7 +753,7 @@ Function Install-LTService{
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
-                    if (!($Force)) { Write-Error $Result -ErrorAction Stop }
+                    if (!($Force)) { Write-Error $Install -ErrorAction Stop }
                 }
             }
             else{
