@@ -10,7 +10,7 @@
     This is a set of commandlets to interface with the LabTech Agent v10.5 and v11.
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -19,20 +19,36 @@
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
 
-    Update Date: 6/7/2017
+    Update Date: 1/23/2018
     Purpose/Change: Updates to address 32-bit vs. 64-bit operations.
 
     Update Date: 6/10/2017
     Purpose/Change: Updates for pipeline input, support for multiple servers
-    
+
 #>
-    
+
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality'}
-if (($ENV:PROCESSOR_ARCHITEW6432) -match '64' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
 
 #Module Version
-$ModuleVersion = "1.3"
+$ModuleVersion = "1.4"
+
+<#
+if (($ENV:PROCESSOR_ARCHITEW6432) -match '64' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
+#>
+
+if ($env:PROCESSOR_ARCHITEW6432 -match '64') {
+    Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
+    if ($myInvocation.Line) {
+        &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile $myInvocation.Line
+    } elseif ($myInvocation.InvocationName) {
+        &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile -file "$($myInvocation.InvocationName)" $args
+    } else {
+        &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile $myInvocation.MyCommand
+    }
+    Write-Warning 'Exiting 64-bit session. Module will only remain loaded in native 64-bit PowerShell environment.'
+exit $lastexitcode
+}
 
 #Ignore SSL errors
 add-type @"
