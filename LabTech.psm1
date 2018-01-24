@@ -243,9 +243,7 @@ Function Stop-LTService{
     Process{
         Try{
             Write-Verbose "Stopping Labtech Services"
-            
-            # Attempt to stop the services and dont wait. v2 workaround for Stop-Service -NoWait
-            ('LTService','LTSvcMon') | ForEach-Object {sc.exe stop "$($_)" 2>'' | Out-Null }
+            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
             Write-Host -NoNewline "Waiting for Services to Stop." 
@@ -297,6 +295,9 @@ Function Start-LTService{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
+
+    Update Date: 12/14/2017
+    Purpose/Change: Will increment the tray port if a conflict is detected.
         
 .LINK
     http://labtechconsulting.com
@@ -304,7 +305,7 @@ Function Start-LTService{
     
     [CmdletBinding()]
     Param()   
-   
+    
     Begin{
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
@@ -314,18 +315,26 @@ Function Start-LTService{
         $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
         if (-not ($Port)) {$Port = "42000"}
     }#End Begin
-  
+    
     Process{
         Try{
-            $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
+            $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
             foreach ($line in $netstat){
                 $processes += ($line -split '  {3,}')[-1]
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             if ($processes) {
-          	    foreach ($proc in $processes){
+                    foreach ($proc in $processes){
                     Write-Output "Process ID:$proc is using port $Port. Killing process."
-                    Stop-Process -ID $proc -Force -Verbose
+                    try{Stop-Process -ID $proc -Force -Verbose -EA Stop}
+                    catch {
+                        Write-Warning "There was an issue killing the following process: $proc"
+                        Write-Warning "This generally  means that a 'protected application' is using this port."
+                        $newPort = [int]$port + 1
+                        if($newPort > 42009) {$newPort = 42000}
+                        Write-Warning "Setting tray port to $newPort."
+                        New-ItemProperty -Path "HKLM:\Software\Labtech\Service" -Name TrayPort -PropertyType String -Value $newPort -Force | Out-Null
+                    }
                 }
             }
             @('LTService','LTSvcMon') | ForEach-Object {
@@ -337,14 +346,14 @@ Function Start-LTService{
             Write-Error "ERROR: There was an error starting the LabTech services. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
-  
+    
     End
     {
         If ($?){
             Write-Output "Services Started successfully."
         }
         else{
-             $($Error[0])
+                $($Error[0])
         }
     }#End End
 }#End Function Start-LTService
@@ -666,6 +675,9 @@ Function Install-LTService{
 .PARAMETER Hide
     This will call Hide-LTAddRemove after the install.
 
+.PATAMETER Force
+    This will disable some of the error checking on the install process.
+
 .EXAMPLE
     Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
@@ -734,16 +746,21 @@ Function Install-LTService{
 
             if ([version]$OSVersion -gt [version]'6.2'){
                 try{
-                    Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All | Out-Null
+                    $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
+                    if ($Install.RestartNeeded) {
+                        Write-Output ".NET 3.5 installed but a reboot is needed."
+                    }
                 }
                 catch{
                     Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
-                    if (!($Force)) { Write-Error $Result -ErrorAction Stop }
+                    if (!($Force)) { Write-Error $Install -ErrorAction Stop }
                 }
             }
             else{
                 $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
-                If ($Result -contains "State : Enabled"){ 
+                If ($Result -contains "State : Enabled"){
+                    # also check reboot status, unsure of possible outputs
+                    # Restart Required : Possible 
 
                     Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                 } 
@@ -1037,7 +1054,7 @@ Function Reinstall-LTService{
         Start-Sleep 10
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
-            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Hide:$Hide $Rename -Force:$True
+            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Force -Hide:$Hide $RenameArg 
         }#End Try
     
         Catch{
