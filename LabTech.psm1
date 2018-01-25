@@ -893,11 +893,14 @@ Function Install-LTService{
             }
 
             Write-Output "Starting Install."
-            $iarg = "/i  $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
+            $iarg = "/i $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
 
             Try{
                 Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
+                If ($Script:LTProxy.Enabled) {
+                    Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
+                }
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
                 Write-Host -NoNewline "Waiting for agent to register." 
@@ -1938,6 +1941,9 @@ Param(
     [string]$InputString,
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
     [string]$Key='Thank you for using LabTech.'
 )
 
@@ -1966,9 +1972,15 @@ Param(
 Function Script:Encrypt-LTSecurity{
 Param(
     [parameter(Mandatory = $true, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
     [string]$InputString,
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
     [string]$Key='Thank you for using LabTech.'
 )
 
@@ -2023,12 +2035,21 @@ Function Set-LTProxy{
 Param(
     [parameter(Mandatory = $True, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 0, ParameterSetName='StdOptions')]
     [parameter(Mandatory = $True, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, ParameterSetName='EncodedOptions')]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
     [string[]]$ProxyServerURL,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 1, ParameterSetName='StdOptions')]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
     [string[]]$ProxyUsername,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 2, ParameterSetName='StdOptions')]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
     [string[]]$ProxyPassword,
 
     [parameter(Mandatory = $True, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, ParameterSetName='EncodedOptions')]
@@ -2061,12 +2082,6 @@ Param(
                 $Script:LTProxy.ProxyPassword=''
                 $Script:LTWebProxy.Address=$Null
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
-                if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
-                    @(@{'Name'='ProxyServerURL'; 'Value'=$Script:LTProxy.ProxyServerURL},
-                    @{'Name'='ProxyUserName'; 'Value'=$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")},
-                    @{'Name'='ProxyPassword'; 'Value'=$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")}                    
-                    ) | Set-ItemProperty $LTServiceSettingsReg -EA 0
-                }
             } ElseIf ($DetectProxy) {
                 $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
                 $Script:LTProxy.Enabled=$True
@@ -2074,14 +2089,9 @@ Param(
                 $Script:LTProxy.ProxyUsername=''
                 $Script:LTProxy.ProxyPassword=''
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
-                if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
-                    @(@{'Name'='ProxyServerURL'; 'Value'=$Script:LTProxy.ProxyServerURL},
-                    @{'Name'='ProxyUserName'; 'Value'=$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")},
-                    @{'Name'='ProxyPassword'; 'Value'=$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")}                    
-                    ) | Set-ItemProperty $LTServiceSettingsReg -EA 0
-                }
             } ElseIf (($ProxyServerURL)) {
-                foreach ($proxyURL in $ProxyServerURL) {
+                write-host "Trying to set URL to: "; $ProxyServerURL
+                foreach ($ProxyURL in $ProxyServerURL) {
                     $Script:LTWebProxy = New-Object System.Net.WebProxy($ProxyURL, $true);
                     $Script:LTProxy.Enabled=$True
                     $Script:LTProxy.ProxyServerURL=$ProxyURL
@@ -2123,16 +2133,17 @@ Param(
   
     End{
         if ($?){
-            Stop-LTService -EA 0 -Quiet
-            if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
-                @(@{'Name'='ProxyServerURL'; 'Value'=$Script:LTProxy.ProxyServerURL},
-                @{'Name'='ProxyUserName'; 'Value'=$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")},
-                @{'Name'='ProxyPassword'; 'Value'=$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")}                    
-                ) | Set-ItemProperty $LTServiceSettingsReg -EA 0
-            }
+            if (($LTServiceSettingsReg)) {
+                Stop-LTService -EA 0
+                if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
+                    @{"ProxyServerURL"="$($Script:LTProxy.ProxyServerURL)";
+                    "ProxyUserName"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")";
+                    "ProxyPassword"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
+                }
+            }#End If
         }
         Else {$Error[0]}
-        Start-LTService -EA 0 -Quiet
+        Start-LTService -EA 0
     }#End End
 
 }#End Function Set-LTProxy
@@ -2227,7 +2238,7 @@ $Script:LTSecurity = New-Object -TypeName PSObject
 Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name ServerPasswordString -Value ''
 Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value ''
 $Private:LTSI=Get-LTServiceInfo -EA 0
-if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
+if (($Private:LTSI) -and ($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
     $Script:LTSecurity.ServerPasswordString=$(Decrypt-LTSecurity -InputString "$($Private:LTSI.ServerPassword)")
     if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'Password'})) {
         $Script:LTSecurity.PasswordString=$(Decrypt-LTSecurity -InputString "$($Private:LTSI.Password)" -Key "$($Script:LTSecurity.ServerPasswordString)")
