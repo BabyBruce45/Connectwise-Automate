@@ -892,7 +892,7 @@ Function Install-LTService{
         if ($GoodServer) {
             if((Test-Path "$($env:windir)\ltsvc" -EA 0) -or (Test-Path "$($env:windir)\temp\_ltudpate" -EA 0) -or (Test-Path registry::HKLM\Software\LabTech\Service -EA 0) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service -EA 0)){
                 Write-Warning "Previous install detected. Calling Uninstall-LTService"
-                Uninstall-LTService -Server $GoodServer
+                Uninstall-LTService -Server $GoodServer 
                 Start-Sleep 10
             }
 
@@ -903,7 +903,10 @@ Function Install-LTService{
                 Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
                 If (($Script:LTProxy.Enabled) -eq $True) {
+                    Write-Verbose "Verbose: Proxy Configuration Needed. Applying Proxy Settings to Agent."
                     Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
+                } else {
+                    Write-Verbose "Verbose: No Proxy Configuration has been specified - Continuing."
                 }#End If
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
@@ -1902,8 +1905,10 @@ Function Rename-LTAddRemove{
         Try{
             foreach($RegRoot in $RegRoots){
                 if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue){
+                    Write-Verbose "Verbose: Setting $($RegRoot)\ProductName=$($Name)"
                     Set-ItemProperty $RegRoot -Name ProductName -Value $Name
                 } elseif (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue){
+                    Write-Verbose "Verbose: Setting $($RegRoot)\HiddenProductName=$($Name)"
                     Set-ItemProperty $RegRoot -Name HiddenProductName -Value $Name
                 }
             }#End Foreach
@@ -1917,6 +1922,7 @@ Function Rename-LTAddRemove{
             Try{
                 foreach($RegRoot in $PublisherRegRoots){
                     if (Get-ItemProperty $RegRoot -Name Publisher -ErrorAction SilentlyContinue){
+                        Write-Verbose "Verbose: Setting $($RegRoot)\Publisher=$($Private:PublisherName)"
                         Set-ItemProperty $RegRoot -Name Publisher -Value $Private:PublisherName
                     }#End If
                 }#End foreach
@@ -1930,9 +1936,9 @@ Function Rename-LTAddRemove{
   
     End{
         if ($?){
-            Write-Output "LabTech is now listed as '$Name' in Add/Remove Programs."
+            Write-Output "LabTech is now listed as $($Name) in Add/Remove Programs."
             if (($Private:PublisherName)){
-                Write-Output "The Publisher is now listed as '$Private:PublisherName'."
+                Write-Output "The Publisher is now listed as $($Private:PublisherName)."
             }#End If
         }
         else {$Error[0]}
@@ -2080,6 +2086,7 @@ Param(
     Process{
         Try{
             If ($ResetProxy) {
+                Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
                 $Script:LTProxy.Enabled=$False
                 $Script:LTProxy.ProxyServerURL=''
                 $Script:LTProxy.ProxyUsername=''
@@ -2088,20 +2095,30 @@ Param(
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
             } ElseIf ($DetectProxy) {
                 $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
+                Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
                 $Script:LTProxy.Enabled=$True
                 $Script:LTProxy.ProxyServerURL=''
                 $Script:LTProxy.ProxyUsername=''
                 $Script:LTProxy.ProxyPassword=''
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
             } ElseIf (($ProxyServerURL)) {
-                write-host "Trying to set URL to: "; $ProxyServerURL
                 foreach ($ProxyURL in $ProxyServerURL) {
                     $Script:LTWebProxy = New-Object System.Net.WebProxy($ProxyURL, $true);
                     $Script:LTProxy.Enabled=$True
                     $Script:LTProxy.ProxyServerURL=$ProxyURL
                 }
+                Write-Output "Setting Proxy URL to: $($ProxyServerURL)"
                 If ((($ProxyUsername) -and ($ProxyPassword)) -or (($EncodedProxyUsername) -and ($EncodedProxyPassword))) {
-
+                    If (($ProxyUsername)) {
+                        foreach ($proxyUser in $ProxyUsername) {
+                            $Script:LTProxy.ProxyUsername=$proxyUser
+                        }
+                    }
+                    If (($EncodedProxyUsername)) {
+                        foreach ($proxyUser in $EncodedProxyUsername) {
+                            $Script:LTProxy.ProxyUsername=$(Decrypt-LTSecurity -InputString "$($proxyUser)" -Key "$($Script:LTSecurity.PasswordString)")
+                        }
+                    }
                     If (($ProxyPassword)) {
                         foreach ($proxyPass in $ProxyPassword) {
                             $Script:LTProxy.ProxyPassword=$proxyPass
@@ -2112,16 +2129,6 @@ Param(
                         foreach ($proxyPass in $EncodedProxyPassword) {
                             $Script:LTProxy.ProxyPassword=$(Decrypt-LTSecurity -InputString "$($proxyPass)" -Key "$($Script:LTSecurity.PasswordString)")
                             $passwd = ConvertTo-SecureString $Script:LTProxy.ProxyPassword -AsPlainText -Force; ## Website credentials
-                        }
-                    }
-                    If (($ProxyUsername)) {
-                        foreach ($proxyUser in $ProxyUsername) {
-                            $Script:LTProxy.ProxyUsername=$proxyUser
-                        }
-                    }
-                    If (($EncodedProxyUsername)) {
-                        foreach ($proxyUser in $EncodedProxyUsername) {
-                            $Script:LTProxy.ProxyUsername=$(Decrypt-LTSecurity -InputString "$($proxyUser)" -Key "$($Script:LTSecurity.PasswordString)")
                         }
                     }
                     $Script:LTWebProxy.Credentials = New-Object System.Management.Automation.PSCredential ($Script:LTProxy.ProxyUsername, $passwd);
@@ -2138,8 +2145,9 @@ Param(
     End{
         if ($?){
             if (($LTServiceSettingsReg)) {
-                try {Stop-LTService -EA 0} catch {}
+                try {Stop-LTService -EA 0 -WA 0} catch {}
                 if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
+                    Write-Verbose "Verbose: Updating LabTech\Service\Settings Proxy Configuraion."
                     @{"ProxyServerURL"="$($Script:LTProxy.ProxyServerURL)";
                     "ProxyUserName"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")";
                     "ProxyPassword"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
@@ -2147,7 +2155,7 @@ Param(
             }#End If
         }
         Else {$Error[0]}
-        try {Start-LTService -EA 0} catch {}
+        try {Start-LTService -EA 0 -WA 0} catch {}
     }#End End
 
 }#End Function Set-LTProxy
