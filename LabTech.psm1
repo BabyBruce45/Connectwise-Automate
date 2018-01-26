@@ -1971,8 +1971,8 @@ Param(
         }
         Finally
         {
-            if ($dd) {try {$dd.Dispose()} catch {$dd.Close()}}
-            if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Close()}}
+            if ($dd) {try {$dd.Dispose()} catch {$dd.Clear()}}
+            if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
         }
         return $str
     }#End Begin
@@ -2013,8 +2013,8 @@ Param(
         }
         Finally
         {
-            if ($dd) {$dd.Dispose()}
-            if ($ddd) {$ddd.Dispose()}
+            if ($dd) {try {$dd.Dispose()} catch {$dd.Clear()}}
+            if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
         }
         return $str
     }#End Begin
