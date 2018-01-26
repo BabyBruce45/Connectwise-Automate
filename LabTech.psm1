@@ -496,8 +496,6 @@ Function Uninstall-LTService{
                         if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
                         Write-Debug "Testing Server Response and Version: $SvrVerCheck"
-#499                        $SvrVer = $(New-Object Net.WebClient).DownloadString($SvrVerCheck)
-#500                        $Script:LTProxy
                         $SvrVer = $Script:LTNetWebClient.DownloadString($SvrVerCheck)
                         
                         Write-Debug "Raw Response: $SvrVer"
@@ -549,7 +547,7 @@ Function Uninstall-LTService{
                         else{
                             Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                             #Download Agent_Uninstall.exe
-                            $(New-Object Net.WebClient).DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
+                            $Script:LTNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
                         }
                         If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and (Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
                             $GoodServer = $Svr
@@ -857,7 +855,7 @@ Function Install-LTService{
                             Continue
                         } else {
                             Write-Debug "Downloading Agent_Install.msi from $installer"
-                            $(New-Object Net.WebClient).DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                            $Script:LTNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
                             If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
                                 $GoodServer = $Svr
                                 Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
@@ -1961,8 +1959,8 @@ Param(
         }
         Finally
         {
-            if ($dd) {$dd.Dispose()}
-            if ($ddd) {$ddd.Dispose()}
+            if ($dd) {try {$dd.Dispose()} catch {$dd.Close()}}
+            if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Close()}}
         }
         return $str
     }#End Begin
