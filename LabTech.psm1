@@ -418,7 +418,10 @@ Function Uninstall-LTService{
     
     Update Date: 8/24/2017
     Purpose/Change: Update to use Clear-Variable. Modifications to Folder and Registry Delete steps. Additional Debugging.
-    
+
+    Update Date: 1/26/2017
+    Purpose/Change: Added support for Proxy Server for Download and Installation steps.
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -702,7 +705,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.6
+    Version:        1.7
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -726,6 +729,9 @@ Function Install-LTService{
     Update Date: 9/7/2017
     Purpose/Change: Support for ShouldProcess to enable -Confirm and -WhatIf.
     
+    Update Date: 1/26/2017
+    Purpose/Change: Added support for Proxy Server for Download and Installation steps.
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -896,9 +902,9 @@ Function Install-LTService{
             Try{
                 Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
-                If ($Script:LTProxy.Enabled) {
+                If (($Script:LTProxy.Enabled) -eq $True) {
                     Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
-                }
+                }#End If
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
                 Write-Host -NoNewline "Waiting for agent to register." 
@@ -2132,7 +2138,7 @@ Param(
     End{
         if ($?){
             if (($LTServiceSettingsReg)) {
-                Stop-LTService -EA 0
+                try {Stop-LTService -EA 0} catch {}
                 if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
                     @{"ProxyServerURL"="$($Script:LTProxy.ProxyServerURL)";
                     "ProxyUserName"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")";
@@ -2141,7 +2147,7 @@ Param(
             }#End If
         }
         Else {$Error[0]}
-        Start-LTService -EA 0
+        try {Start-LTService -EA 0} catch {}
     }#End End
 
 }#End Function Set-LTProxy
@@ -2185,16 +2191,13 @@ Function Get-LTProxy{
     $Private:LTSI=Get-LTServiceInfo -EA 0
     if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
         Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name ServerPasswordString -Value "$(Decrypt-LTSecurity -InputString "$($Private:LTSI.ServerPassword)")"
-#Write-Output "Retrieved $($Script:LTSecurity.ServerPasswordString)"
         if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'Password'})) {
             Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value "$(Decrypt-LTSecurity -InputString "$($Private:LTSI.Password)" -Key "$($Script:LTSecurity.ServerPasswordString)")"
         } else {
             #Need to set Agent Password to appropriate value. Server Password is known but the agent is unregistered.
-            Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value 'THIS IS NOTHING HERE.'
+            Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value ''
         }
-#Write-Output "Retrieved $($Script:LTSecurity.PasswordString)"
         $Private:LTSS=Get-LTServiceSettings
-#write-output "Got LTServiceSettings here"; $Private:LTSS
         if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyServerURL'}) -and ($Private:LTSS.ProxyServerURL)) {
             Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value "$($Private:LTSS.ProxyServerURL)"
         } else {
