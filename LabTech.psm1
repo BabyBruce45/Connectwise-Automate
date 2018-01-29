@@ -271,7 +271,7 @@ Function Stop-LTService{
             Write-Host ""
             $sw.Stop()
             if ($svcRun -gt 0) {
-                Write-Verbose "Services did not stop. Terminating Processes after $([int32]$sw.Elapsed.TotalSeconds.ToString()) seconds."
+                Write-Verbose "Services did not stop. Terminating Processes after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
             }
             Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
         }#End Try
@@ -515,7 +515,10 @@ Function Uninstall-LTService{
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
                         }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
-                        $installerTest.Proxy=$Script:LTWebProxy
+                        If (($Script:LTProxy.Enabled) -eq $True) {
+                            Write-Debug "Verbose: Proxy Configuration Needed. Applying Proxy Settings to request."
+                            $installerTest.Proxy=$Script:LTWebProxy
+                        }#End If                        
                         $installerTest.KeepAlive=$False
                         $installerTest.ProtocolVersion = '1.0'
                         $installerResult = $installerTest.GetResponse()
@@ -538,7 +541,10 @@ Function Uninstall-LTService{
                             $uninstaller = "$($Svr)/Labtech/Deployment.aspx?probe=1&ID=-2"
                         }
                         $uninstallerTest = [System.Net.WebRequest]::Create($uninstaller)
-                        $uninstallerTest.Proxy=$Script:LTWebProxy
+                        If (($Script:LTProxy.Enabled) -eq $True) {
+                            Write-Debug "Verbose: Proxy Configuration Needed. Applying Proxy Settings to request."
+                            $uninstallerTest.Proxy=$Script:LTWebProxy
+                        }#End If                        
                         $uninstallerTest.KeepAlive=$False
                         $uninstallerTest.ProtocolVersion = '1.0'
                         $uninstallerResult = $uninstallerTest.GetResponse()
@@ -851,7 +857,10 @@ Function Install-LTService{
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
                         }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
-                        $installerTest.Proxy=$Script:LTWebProxy
+                        If (($Script:LTProxy.Enabled) -eq $True) {
+                            Write-Debug "Verbose: Proxy Configuration Needed. Applying Proxy Settings to request."
+                            $installerTest.Proxy=$Script:LTWebProxy
+                        }#End If                        
                         $installerTest.KeepAlive=$False
                         $installerTest.ProtocolVersion = '1.0'
                         $installerResult = $installerTest.GetResponse()
@@ -903,7 +912,7 @@ Function Install-LTService{
                 Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
                 Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
                 If (($Script:LTProxy.Enabled) -eq $True) {
-                    Write-Verbose "Verbose: Proxy Configuration Needed. Applying Proxy Settings to Agent."
+                    Write-Verbose "Verbose: Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
                     Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
                 } else {
                     Write-Verbose "Verbose: No Proxy Configuration has been specified - Continuing."
@@ -917,7 +926,7 @@ Function Install-LTService{
                     $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
                 } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
                 $sw.Stop()
-                Write-Verbose "Completed wait for LabTech Installation after $([int32]$sw.Elapsed.TotalSeconds.ToString()) seconds."
+                Write-Verbose "Completed wait for LabTech Installation after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
                 If ($Hide) {Hide-LTAddRemove}
             }#End Try
 
@@ -2097,7 +2106,7 @@ Param(
                 $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
                 Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
                 $Script:LTProxy.Enabled=$True
-                $Script:LTProxy.ProxyServerURL=''
+                $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy('http://www.connectwise.com').Authority
                 $Script:LTProxy.ProxyUsername=''
                 $Script:LTProxy.ProxyPassword=''
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
@@ -2132,8 +2141,8 @@ Param(
                         }
                     }
                     $Script:LTWebProxy.Credentials = New-Object System.Management.Automation.PSCredential ($Script:LTProxy.ProxyUsername, $passwd);
-                    $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
                 }#End If
+                $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
             }#End If
         }#End Try
     
@@ -2147,8 +2156,10 @@ Param(
             if (($LTServiceSettingsReg)) {
                 try {Stop-LTService -EA 0 -WA 0} catch {}
                 if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
-                    Write-Verbose "Verbose: Updating LabTech\Service\Settings Proxy Configuraion."
-                    @{"ProxyServerURL"="$($Script:LTProxy.ProxyServerURL)";
+                    Write-Verbose "Verbose: Updating LabTech\Service\Settings Proxy Configuration."
+                    if ($Script:LTProxy.ProxyServerURL -eq '') {$Svr=''}
+                    else {$Svr=$($Script:LTProxy.ProxyServerURL); if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}}
+                    @{"ProxyServerURL"=$Svr;
                     "ProxyUserName"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")";
                     "ProxyPassword"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
                 }
