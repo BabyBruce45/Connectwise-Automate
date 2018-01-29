@@ -516,7 +516,7 @@ Function Uninstall-LTService{
                         }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         If (($Script:LTProxy.Enabled) -eq $True) {
-                            Write-Debug "Verbose: Proxy Configuration Needed. Applying Proxy Settings to request."
+                            Write-Debug "Proxy Configuration Needed. Applying Proxy Settings to request."
                             $installerTest.Proxy=$Script:LTWebProxy
                         }#End If                        
                         $installerTest.KeepAlive=$False
@@ -542,7 +542,7 @@ Function Uninstall-LTService{
                         }
                         $uninstallerTest = [System.Net.WebRequest]::Create($uninstaller)
                         If (($Script:LTProxy.Enabled) -eq $True) {
-                            Write-Debug "Verbose: Proxy Configuration Needed. Applying Proxy Settings to request."
+                            Write-Debug "Proxy Configuration Needed. Applying Proxy Settings to request."
                             $uninstallerTest.Proxy=$Script:LTWebProxy
                         }#End If                        
                         $uninstallerTest.KeepAlive=$False
@@ -858,7 +858,7 @@ Function Install-LTService{
                         }
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         If (($Script:LTProxy.Enabled) -eq $True) {
-                            Write-Debug "Verbose: Proxy Configuration Needed. Applying Proxy Settings to request."
+                            Write-Debug "Proxy Configuration Needed. Applying Proxy Settings to request."
                             $installerTest.Proxy=$Script:LTWebProxy
                         }#End If                        
                         $installerTest.KeepAlive=$False
@@ -2094,7 +2094,7 @@ Param(
   
     Process{
         Try{
-            If ($ResetProxy) {
+            If ($($ResetProxy) -eq $True) {
                 Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
                 $Script:LTProxy.Enabled=$False
                 $Script:LTProxy.ProxyServerURL=''
@@ -2102,11 +2102,15 @@ Param(
                 $Script:LTProxy.ProxyPassword=''
                 $Script:LTWebProxy.Address=$Null
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
-            } ElseIf ($DetectProxy) {
+            } ElseIf ($($DetectProxy) -eq $True) {
+                Write-Verbose "Verbose: DetectProxy selected. Attempting to Detect Proxy Settings."
                 $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
-                Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
                 $Script:LTProxy.Enabled=$True
                 $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy('http://www.connectwise.com').Authority
+                if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains 'www.connectwise.com')) {
+                    $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|foreach {$_.matches}|select -Expand value
+                }
+                Write-Debug "Detected URL: $($Script:LTProxy.ProxyServerURL)"
                 $Script:LTProxy.ProxyUsername=''
                 $Script:LTProxy.ProxyPassword=''
                 $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
