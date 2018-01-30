@@ -7,7 +7,8 @@
 
 
 .DESCRIPTION
-    This is a set of commandlets to interface with the LabTech Agent v10.5 and v11.
+    This is a set of commandlets to interface with the LabTech Agent.
+    Tested Versions: v10.5, v11, v12
 
 .NOTES
     Version:        1.4
@@ -32,10 +33,6 @@ if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Ve
 
 #Module Version
 $ModuleVersion = "1.4"
-
-<#
-if (($ENV:PROCESSOR_ARCHITEW6432) -match '64' -and [IntPtr]::Size -ne 8) {Write-Warning '32-bit Session detected on 64-bit OS. Must run in native environment.';return}
-#>
 
 if ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
     Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
@@ -63,10 +60,11 @@ add-type @"
     }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
- 
-#region-[Functions]------------------------------------------------------------
+
+#region [Functions]-------------------------------------------------------------
 
 Function Get-LTServiceInfo{ 
+#region [Get-LTServiceInfo]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will pull all of the registry data into an object.
@@ -132,8 +130,10 @@ Function Get-LTServiceInfo{
     }    
   }#End End
 }#End Function Get-LTServiceInfo
+#endregion Get-LTServiceInfo
 
 Function Get-LTServiceSettings{ 
+#region [Get-LTServiceSettings]-------------------------------------------------
 <#
 .SYNOPSIS
     This function will pull the registry data from HKLM:\SOFTWARE\LabTech\Service\Settings into an object.
@@ -178,8 +178,10 @@ Function Get-LTServiceSettings{
     }    
   }#End End
 }#End Function Get-LTServiceSettings
+#endregion LTServiceSettings
 
 Function Restart-LTService{
+#region [Restart-LTService]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will restart the LabTech Services.
@@ -209,7 +211,7 @@ Function Restart-LTService{
   
   Process{
     Try{
-      Stop-LTService
+      LabTech\Stop-LTService
       Start-LTService
     }#End Try
     
@@ -223,8 +225,10 @@ Function Restart-LTService{
     Else {$Error[0]}
   }#End End
 }#End Function Restart-LTService
+#endregion Restart-LTService
 
 Function Stop-LTService{
+#region [Stop-LTService]--------------------------------------------------------
 <#
 .SYNOPSIS
     This function will stop the LabTech Services.
@@ -288,8 +292,10 @@ Function Stop-LTService{
         Else {$Error[0]}
     }#End End
 }#End Function Stop-LTService
+#endregion Stop-LTService
 
 Function Start-LTService{
+#region [Start-LTService]-------------------------------------------------------
 <#
 .SYNOPSIS
     This function will start the LabTech Services.
@@ -373,8 +379,10 @@ Function Start-LTService{
         }
     }#End End
 }#End Function Start-LTService
+#endregion Start-LTService
 
 Function Uninstall-LTService{
+#region [Uninstall-LTService]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will uninstall the LabTech agent from the machine.
@@ -499,7 +507,7 @@ Function Uninstall-LTService{
                         if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
                         Write-Debug "Testing Server Response and Version: $SvrVerCheck"
-                        $SvrVer = $Script:LTNetWebClient.DownloadString($SvrVerCheck)
+                        $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
                         
                         Write-Debug "Raw Response: $SvrVer"
                         if ($SvrVer -NotMatch '(?<=[|]{6})[0-9]{3}\.[0-9]{3}') {
@@ -529,7 +537,7 @@ Function Uninstall-LTService{
                         }
                         else{
                             Write-Debug "Downloading Agent_Install.msi from $installer"
-                            $Script:LTNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                            $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
                         }
 
                         #Using $SVer results gathered above.
@@ -556,7 +564,7 @@ Function Uninstall-LTService{
                         else{
                             Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                             #Download Agent_Uninstall.exe
-                            $Script:LTNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
+                            $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
                         }
                         If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and (Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
                             $GoodServer = $Svr
@@ -674,8 +682,10 @@ Function Uninstall-LTService{
         }#End If
     }#End End
 }#End Function Uninstall-LTService
+#endregion Uninstall-LTService
 
 Function Install-LTService{
+#region [Install-LTService]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will install the LabTech agent on the machine.
@@ -842,7 +852,7 @@ Function Install-LTService{
                     Try {
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
                         Write-Debug "Testing Server Response and Version: $SvrVerCheck"
-                        $SvrVer = $Script:LTNetWebClient.DownloadString($SvrVerCheck)
+                        $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
                         Write-Debug "Raw Response: $SvrVer"
                         if ($SvrVer -NotMatch '(?<=[|]{6})[0-9]{3}\.[0-9]{3}') {
                             Write-Verbose "Unable to test version response from $($Svr)."
@@ -870,7 +880,7 @@ Function Install-LTService{
                             Continue
                         } else {
                             Write-Debug "Downloading Agent_Install.msi from $installer"
-                            $Script:LTNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                            $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
                             If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
                                 $GoodServer = $Svr
                                 Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
@@ -956,8 +966,10 @@ Function Install-LTService{
         }
     }#End End
 }#End Function Install-LTService
+#endregion Install-LTService
 
-Function Reinstall-LTService{
+Function Redo-LTService{
+#region [Redo-LTService]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will reinstall the LabTech agent from the machine.
@@ -992,11 +1004,11 @@ Function Reinstall-LTService{
     This will call Rename-LTAddRemove to rename the install in Add/Remove Programs
 
 .EXAMPLE
-    ReInstall-LTService 
+    Redo-LTService 
     This will ReInstall the LabTech agent using the server address in the registry.
 
 .EXAMPLE
-    ReInstall-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
+    Redo-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
     This will ReInstall the LabTech agent using the provided server URL to download the installation files.
 
 .NOTES
@@ -1109,9 +1121,12 @@ Function Reinstall-LTService{
             $($Error[0])
         }
     }#End End
-}#End Function Reinstall-LTService
+}#End Function Redo-LTService
+#endregion Redo-LTService
+Set-Alias -Name ReInstall-LTService -Value Redo-LTService
 
 Function Get-LTError{
+#region [Get-LTError]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This will pull the %ltsvcdir%\LTErrors.txt file into an object.
@@ -1178,9 +1193,10 @@ Function Get-LTError{
         
     }#End End
 }#End Function Get-LTError
-
+#endregion Get-LTError
 
 Function Reset-LTService{
+#region [Reset-LTService]-------------------------------------------------------
 <#
 .SYNOPSIS
     This function will remove local settings on the agent.
@@ -1283,8 +1299,10 @@ Function Reset-LTService{
         Else {$Error[0]}
     }#End End
 }#End Function Reset-LTService
+#endregion Reset-LTService
 
 Function Hide-LTAddRemove{
+#region [Hide-LTAddRemove]------------------------------------------------------
 <#
 .SYNOPSIS
     This function hides the LabTech install from the Add/Remove Programs list.
@@ -1340,8 +1358,10 @@ Function Hide-LTAddRemove{
         else {$Error[0]}
     }#End End
 }#End Function Hide-LTAddRemove
+#endregion Hide-LTAddRemove
 
 Function Show-LTAddRemove{
+#region [Show-LTAddRemove]------------------------------------------------------
 <#
 .SYNOPSIS
     This function shows the LabTech install in the add/remove programs list.
@@ -1413,8 +1433,10 @@ Function Show-LTAddRemove{
         Else{$Error[0]}
     }#End End
 }#End Function Show-LTAddRemove
+#endregion Show-LTAddRemove
 
 Function Test-LTPorts{
+#region [Test-LTPorts]----------------------------------------------------------
 <#
 .SYNOPSIS
     This function will attempt to connect to all required TCP ports.
@@ -1469,21 +1491,22 @@ Function Test-LTPorts{
     Begin{
         Function Private:TestPort{
         Param(
-            [parameter(ParameterSetName='ComputerName', Position=0)]
+            [parameter(Position=0)]
             [string]
             $ComputerName,
 
-            [parameter(ParameterSetName='IP', Position=0)]
+            [parameter(Mandatory=$False)]
             [System.Net.IPAddress]
             $IPAddress,
 
-            [parameter(Mandatory=$true , Position=1)]
+            [parameter(Mandatory=$True , Position=1)]
             [int]
             $Port
             )
 
         $RemoteServer = If ([string]::IsNullOrEmpty($ComputerName)) {$IPAddress} Else {$ComputerName};
-    
+        If ([string]::IsNullOrEmpty($RemoteServer)) {Write-Error "No ComputerName or IPAddress was provided to test."; return}
+
         $test = New-Object System.Net.Sockets.TcpClient;
         Try
         {
@@ -1501,7 +1524,7 @@ Function Test-LTPorts{
             $test.Close();
         }
 
-    }#End Function TestPort
+        }#End Function TestPort
 
         Clear-Variable CleanSvr,svr,proc,processes,port,netstat,line -EA 0 #Clearing Variables for use
 
@@ -1570,8 +1593,10 @@ Function Test-LTPorts{
       }#End End
 
 }#End Function Test-LTPorts
+#endregion Test-LTPorts
 
-Function Get-LTLogging{ 
+Function Get-LTLogging{
+#region [Get-LTLogging]---------------------------------------------------- ----
 <#
 .SYNOPSIS
     This function will pull the logging level of the LabTech service.
@@ -1623,8 +1648,10 @@ Function Get-LTLogging{
     }    
   }#End End
 }#End Function Get-LTLogging
+#endregion Get-LTLogging
 
-Function Set-LTLogging{ 
+Function Set-LTLogging{
+#region [Set-LTLogging]---------------------------------------------------- ----
 <#
 .SYNOPSIS
         This function will set the logging level of the LabTech service.
@@ -1678,8 +1705,10 @@ Function Set-LTLogging{
     }    
   }#End End
 }#End Function Set-LTLogging
+#endregion Set-LTLogging
 
-Function Get-LTProbeErrors {
+Function Get-LTProbeErrors{
+#region [Get-LTProbeErrors]-----------------------------------------------------
 <#
 .SYNOPSIS
     This will pull the %ltsvcdir%\LTProbeErrors.txt file into an object.
@@ -1735,8 +1764,10 @@ Function Get-LTProbeErrors {
         
     }#End End
 }#End Function Get-LTProbeErrors
+#endregion Get-LTProbeErrors
 
-Function New-LTServiceBackup {
+Function New-LTServiceBackup{
+#region [New-LTServiceBackup]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTechBackup'
@@ -1820,8 +1851,10 @@ Function New-LTServiceBackup {
     }#End If
   }#End End
 }#End Function New-LTServiceBackup
+#endregion New-LTServiceBackup
 
-Function Get-LTServiceInfoBackup { 
+Function Get-LTServiceInfoBackup{
+#region [Get-LTServiceInfoBackup]-----------------------------------------------
 <#
 .SYNOPSIS
     This function will pull all of the backed up registry data into an object.
@@ -1874,8 +1907,10 @@ Function Get-LTServiceInfoBackup {
     }    
   }#End End
 }#End Function Get-LTServiceInfoBackup
+#endregion Get-LTServiceInfoBackup
 
 Function Rename-LTAddRemove{
+#region [Rename-LTAddRemove]----------------------------------------------------
 <#
 .SYNOPSIS
     This function renames the LabTech install as shown in the Add/Remove Programs list.
@@ -1892,7 +1927,13 @@ Function Rename-LTAddRemove{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
-    
+
+.PARAMETER Name
+    This is the Name for the LabTech Agent as displayed in the list of installed software.
+
+.PARAMETER PublisherName
+    This is the Name for the Publisher of the LabTech Agent as displayed in the list of installed software.
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -1953,8 +1994,28 @@ Function Rename-LTAddRemove{
         else {$Error[0]}
     }#End End
 }#End Function Rename-LTAddRemove
+#endregion Rename-LTAddRemove
 
-Function Script:Decrypt-LTSecurity{
+Function Get-LTServiceKeys{
+#region [Get-LTServiceKeys]--------------------------------------------------------
+Param(
+)
+    End {
+        $Private:LTSI=Get-LTServiceInfo -EA 0
+        if (($Private:LTSI) -and ($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
+            $Script:LTServiceKeys.ServerPasswordString=$(ConvertFrom-LTSecurity -InputString "$($Private:LTSI.ServerPassword)")
+            if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'Password'})) {
+                $Script:LTServiceKeys.PasswordString=$(ConvertFrom-LTSecurity -InputString "$($Private:LTSI.Password)" -Key "$($Script:LTServiceKeys.ServerPasswordString)")
+            } else {
+                $Script:LTServiceKeys.PasswordString=''
+            }
+        }
+    }#End 
+}#End Function ConvertTo-LTSecurity
+#endregion ConvertTo-LTSecurity
+
+Function ConvertFrom-LTSecurity{
+#region [ConvertFrom-LTSecurity]----------------------------------------------------
 Param(
     [parameter(Mandatory = $true, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
     [string]$InputString,
@@ -1984,11 +2045,13 @@ Param(
             if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
         }
         return $str
-    }#End Begin
+   }#End Begin
 
-}#End Function Decrypt-LTSecurity
+}#End Function ConvertFrom-LTSecurity
+#endregion ConvertFrom-LTSecurity
 
-Function Script:Encrypt-LTSecurity{
+Function ConvertTo-LTSecurity{
+#region [ConvertTo-LTSecurity]----------------------------------------------------
 Param(
     [parameter(Mandatory = $true, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
     [AllowNull()]
@@ -2027,9 +2090,11 @@ Param(
         }
         return $str
     }#End Begin
-}#End Function Encrypt-LTSecurity
+}#End Function ConvertTo-LTSecurity
+#endregion ConvertTo-LTSecurity
 
 Function Set-LTProxy{
+#region [Set-LTProxy]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This function configures module functions to use the specified proxy configuration for all operations as long as the module remains loaded.
@@ -2037,7 +2102,49 @@ Function Set-LTProxy{
 .DESCRIPTION
     This function will set or clear Proxy settings needed for function and agent operations. If an agent is already installed, 
     this function will set the ProxyUsername, ProxyPassword, and ProxyServerURL values for the Agent.
-    NOTE - This will include stopping and starting LTService while the changes are applied.
+    NOTE - Agent Services will be restarted while changes (if found) are applied.
+
+.PARAMETER ProxyServerURL
+    This is the URL and Port to assign as the ProxyServerURL for Module
+    operations during this session and for the Installed Agent (if present).
+    Example: Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com'
+    Example: Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com:8080'
+    This parameter may be used with the additional following parameters:
+    ProxyUsername, ProxyPassword, EncodedProxyUsername, EncodedProxyPassword
+
+.PARAMETER ProxyUsername
+    This is the plain text Username for Proxy operations.
+    Example: Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com:8080' -ProxyUsername 'Test-User' -ProxyPassword 'SomeFancyPassword'
+
+.PARAMETER ProxyPassword
+    This is the plain text Password for Proxy operations.
+
+.PARAMETER EncodedProxyUsername
+    This is the encoded Username for Proxy operations. The parameter must be
+    encoded with the Agent Password. This Parameter will be decoded using the
+    Agent Password, and the decoded string will be configured.
+    NOTE: Reinstallation of the Agent will generate a new password.
+    Example: Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com:8080' -EncodedProxyUsername '1GzhlerwMy0ElG9XNgiIkg==' -EncodedProxyPassword 'Duft4r7fekTp5YnQL9F0V9TbP7sKzm0n'
+
+.PARAMETER EncodedProxyPassword
+    This is the encoded Password for Proxy operations. The parameter must be
+    encoded with the Agent Password. This Parameter will be decoded using the
+    Agent Password, and the decoded string will be configured.
+    NOTE: Reinstallation of the Agent will generate a new password.
+
+.PARAMETER DetectProxy
+    This parameter attempts to automatically detect the system Proxy settings
+    for Module operations during this session. Discovered settings will be
+    assigned to the Installed Agent (if present).
+    Example: Set-LTProxy -DetectProxy
+    This parameter may not be used with other parameters.
+
+.PARAMETER ResetProxy
+    This parameter clears any currently defined Proxy Settings for Module
+    operations during this session. Discovered settings will be assigned
+    to the Installed Agent (if present).
+    Example: Set-LTProxy -ResetProxy
+    This parameter may not be used with other parameters.
 
 .NOTES
     Version:        1.1
@@ -2052,46 +2159,60 @@ Function Set-LTProxy{
 
 [CmdletBinding()]
 Param(
-    [parameter(Mandatory = $True, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 0, ParameterSetName='StdOptions')]
-    [parameter(Mandatory = $True, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, ParameterSetName='EncodedOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 0)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
     [string[]]$ProxyServerURL,
 
-    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 1, ParameterSetName='StdOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 1)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
     [string[]]$ProxyUsername,
 
-    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 2, ParameterSetName='StdOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 2)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
     [string[]]$ProxyPassword,
 
-    [parameter(Mandatory = $True, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, ParameterSetName='EncodedOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
     [string[]]$EncodedProxyUsername,
 
-    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, ParameterSetName='EncodedOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
     [string[]]$EncodedProxyPassword,
 
-    [parameter(Mandatory = $True, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, ParameterSetName='SystemOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
     [switch]$DetectProxy,
 
-    [parameter(Mandatory = $True, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, ParameterSetName='ResetOptions')]
+    [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
     [alias('ClearProxy')]
     [switch]$ResetProxy
 )
 
     Begin {
-        if ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+        Clear-Variable LTServiceSettingsReg,LTServiceSettingsChanged,LTSS,LTServiceRestartNeeded,proxyURL,proxyUser,proxyPass,passwd -EA 0 #Clearing Variables for use
+
+        If (
+(($ResetProxy -eq $True) -and (($DetectProxy -eq $True) -or ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword))) -or 
+(($DetectProxy -eq $True) -and (($ResetProxy -eq $True) -or ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword))) -or 
+((($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword)) -and (($ResetProxy -eq $True) -or ($DetectProxy -eq $True))) -or 
+((($ProxyUsername) -or ($ProxyPassword)) -and (-not ($ProxyServerURL) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword) -or ($ResetProxy -eq $True) -or ($DetectProxy -eq $True))) -or 
+((($EncodedProxyUsername) -or ($EncodedProxyPassword)) -and (-not ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($ResetProxy -eq $True) -or ($DetectProxy -eq $True)))
+        ) {Write-Error "Set-LTProxy: Invalid Parameter specified"; Break}
+        If (-not (($ResetProxy -eq $True) -or ($DetectProxy -eq $True) -or ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword))) 
+        {
+            If ($Args.Count -gt 0) {Write-Error "Set-LTProxy: Unknown Parameter specified"; Break}
+            Else {Write-Error "Set-LTProxy: Required Parameters Missing"; Break}
+        }
+
+        If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
             $LTServiceSettingsReg = 'HKLM:\SOFTWARE\LabTech\Service\Settings'
-        } else {$LTServiceSettingsReg=$Null}
+        } Else {$LTServiceSettingsReg=$Null}
         
     }#End Begin
-  
+
     Process{
         Try{
             If ($($ResetProxy) -eq $True) {
@@ -2100,8 +2221,8 @@ Param(
                 $Script:LTProxy.ProxyServerURL=''
                 $Script:LTProxy.ProxyUsername=''
                 $Script:LTProxy.ProxyPassword=''
-                $Script:LTWebProxy.Address=$Null
-                $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
+                $Script:LTWebProxy=New-Object System.Net.WebProxy
+                $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
             } ElseIf ($($DetectProxy) -eq $True) {
                 Write-Verbose "Verbose: DetectProxy selected. Attempting to Detect Proxy Settings."
                 $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
@@ -2110,17 +2231,23 @@ Param(
                 if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains 'www.connectwise.com')) {
                     $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|foreach {$_.matches}|select -Expand value
                 }
-                Write-Debug "Detected URL: $($Script:LTProxy.ProxyServerURL)"
+                if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -eq $Null)) {
+                    $Script:LTProxy.ProxyServerURL=''
+                    $Script:LTProxy.Enabled=$False
+                } else {
+                    $Script:LTProxy.Enabled=$True
+                    Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL)"
+                }
                 $Script:LTProxy.ProxyUsername=''
                 $Script:LTProxy.ProxyPassword=''
-                $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
+                $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
             } ElseIf (($ProxyServerURL)) {
                 foreach ($ProxyURL in $ProxyServerURL) {
                     $Script:LTWebProxy = New-Object System.Net.WebProxy($ProxyURL, $true);
                     $Script:LTProxy.Enabled=$True
                     $Script:LTProxy.ProxyServerURL=$ProxyURL
                 }
-                Write-Output "Setting Proxy URL to: $($ProxyServerURL)"
+                Write-Verbose "Verbose: Setting Proxy URL to: $($ProxyServerURL)"
                 If ((($ProxyUsername) -and ($ProxyPassword)) -or (($EncodedProxyUsername) -and ($EncodedProxyPassword))) {
                     If (($ProxyUsername)) {
                         foreach ($proxyUser in $ProxyUsername) {
@@ -2129,7 +2256,7 @@ Param(
                     }
                     If (($EncodedProxyUsername)) {
                         foreach ($proxyUser in $EncodedProxyUsername) {
-                            $Script:LTProxy.ProxyUsername=$(Decrypt-LTSecurity -InputString "$($proxyUser)" -Key "$($Script:LTSecurity.PasswordString)")
+                            $Script:LTProxy.ProxyUsername=$(ConvertFrom-LTSecurity -InputString "$($proxyUser)" -Key "$($Script:LTServiceKeys.PasswordString)")
                         }
                     }
                     If (($ProxyPassword)) {
@@ -2140,13 +2267,13 @@ Param(
                     }
                     If (($EncodedProxyPassword)) {
                         foreach ($proxyPass in $EncodedProxyPassword) {
-                            $Script:LTProxy.ProxyPassword=$(Decrypt-LTSecurity -InputString "$($proxyPass)" -Key "$($Script:LTSecurity.PasswordString)")
+                            $Script:LTProxy.ProxyPassword=$(ConvertFrom-LTSecurity -InputString "$($proxyPass)" -Key "$($Script:LTServiceKeys.PasswordString)")
                             $passwd = ConvertTo-SecureString $Script:LTProxy.ProxyPassword -AsPlainText -Force; ## Website credentials
                         }
                     }
                     $Script:LTWebProxy.Credentials = New-Object System.Management.Automation.PSCredential ($Script:LTProxy.ProxyUsername, $passwd);
                 }#End If
-                $Script:LTNetWebClient.Proxy=$Script:LTWebProxy
+                $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
             }#End If
         }#End Try
     
@@ -2156,34 +2283,63 @@ Param(
     }#End Process
   
     End{
-        if ($?){
-            if (($LTServiceSettingsReg)) {
-                try {Stop-LTService -EA 0 -WA 0} catch {}
-                if (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
+        If ($?){
+            $LTServiceSettingsChanged=$False
+            If (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
+                $Private:LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
+                If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyServerURL'})) {
+                    If ($Private:LTSS.ProxyServerURL -like 'http*://*') {
+                        If ($Private:LTSS.ProxyServerURL -ne "http://$($Script:LTProxy.ProxyServerURL)") {
+                            Write-Debug "ProxyServerURL Changed: Old Value: $($Private:LTSS.ProxyServerURL) New Value: http://$($Script:LTProxy.ProxyServerURL)"
+                            $LTServiceSettingsChanged=$True
+                        }
+                    } Else {
+                        If (($Private:LTSS.ProxyServerURL -ne $Script:LTProxy.ProxyServerURL) -and ($Private:LTSS.ProxyServerURL -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
+                            Write-Debug "ProxyServerURL Changed: Old Value: $($Private:LTSS.ProxyServerURL) New Value: $($Script:LTProxy.ProxyServerURL)"
+                            $LTServiceSettingsChanged=$True
+                        }
+                    }
+                }#End If
+                if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyUsername'}) -and ($Private:LTSS.ProxyUsername)) {
+                    If ($(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTServiceKeys.PasswordString)") -ne $Script:LTProxy.ProxyUsername) {
+                        Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTServiceKeys.PasswordString)") New Value: $($Script:LTProxy.ProxyUsername)"
+                        $LTServiceSettingsChanged=$True
+                    }
+                }#End If
+                If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyPassword'}) -and ($Private:LTSS.ProxyPassword)) {
+                    If ($(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)") -ne $Script:LTProxy.ProxyPassword) {
+                        Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)") New Value: $($Script:LTProxy.ProxyPassword)"
+                        $LTServiceSettingsChanged=$True
+                    }
+                }#End If
+                If ($LTServiceSettingsChanged -eq $True) {
+                    If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue|Where-Object {$_.Status -match 'Running'})) { $LTServiceRestartNeeded=$True; try {Stop-LTService -EA 0 -WA 0} catch {} }
                     Write-Verbose "Verbose: Updating LabTech\Service\Settings Proxy Configuration."
-                    if ($Script:LTProxy.ProxyServerURL -eq '') {$Svr=''}
-                    else {$Svr=$($Script:LTProxy.ProxyServerURL); if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}}
+                    $Svr=$($Script:LTProxy.ProxyServerURL); If (($Svr -ne '') -and ($Svr -notlike 'http*://*')) {$Svr = "http://$($Svr)"}
                     @{"ProxyServerURL"=$Svr;
-                    "ProxyUserName"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTSecurity.PasswordString)")";
-                    "ProxyPassword"="$(Encrypt-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
-                }
+                    "ProxyUserName"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTServiceKeys.PasswordString)")";
+                    "ProxyPassword"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
+                    If ($LTServiceRestartNeeded -eq $True) { try {Start-LTService -EA 0 -WA 0} catch {} }
+                }#End If
             }#End If
         }
         Else {$Error[0]}
-        try {Start-LTService -EA 0 -WA 0} catch {}
     }#End End
 
 }#End Function Set-LTProxy
+#endregion Set-LTProxy
 
 Function Get-LTProxy{
+#region [Get-LTProxy]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This function retrieves the current agent proxy settings for module functions to use the specified proxy configuration for all operations as long as the module remains loaded.
 
 .DESCRIPTION
-    This function will get the current Agent Proxy settings if an agent is installed.
-    If a proxy configuration was already gathered by Set-LTProxy it will be reported.
-    Otherwise it will attempt to discover the current proxy settings for the system and report them.
+    This function will get the current LabTech Proxy settings from the 
+    installed agent (if present). If no agent settings are found, the function
+    will attempt to discover the current proxy settings for the system.
+    The Proxy Settings determined will be reported.
 
 .NOTES
     Version:        1.1
@@ -2202,93 +2358,119 @@ Function Get-LTProxy{
 
   Begin
   {
-#    Clear-Variable key,BasePath,exclude,Servers -EA 0 #Clearing Variables for use
-#    Write-Verbose "Starting Get-LTServiceInfo"
-
-    $include = 'ProxyServerURL','ProxyUsername','ProxyPassword'
+    Clear-Variable Key,LTSI,LTSS -EA 0 #Clearing Variables for use
+    Write-Verbose "Checking for LT Agent Proxy Settings."
   }#End Begin
   
   Process{
-    Write-Verbose "Checking for LT Agent Proxy Settings."
-    $Key = New-Object -TypeName PSObject
-    $Private:LTSI=Get-LTServiceInfo -EA 0
-    if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
-        Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name ServerPasswordString -Value "$(Decrypt-LTSecurity -InputString "$($Private:LTSI.ServerPassword)")"
-        if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'Password'})) {
-            Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value "$(Decrypt-LTSecurity -InputString "$($Private:LTSI.Password)" -Key "$($Script:LTSecurity.ServerPasswordString)")"
-        } else {
-            #Need to set Agent Password to appropriate value. Server Password is known but the agent is unregistered.
-            Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value ''
-        }
-        $Private:LTSS=Get-LTServiceSettings
-        if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyServerURL'}) -and ($Private:LTSS.ProxyServerURL)) {
-            Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value "$($Private:LTSS.ProxyServerURL)"
-        } else {
-            Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value ''
-        }
-        if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyUsername'}) -and ($Private:LTSS.ProxyUsername)) {
-            Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyUsername -Value "$(Decrypt-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTSecurity.PasswordString)")"
-        } else {
-            Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyUsername -Value ''
-        }
-        if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyPassword'}) -and ($Private:LTSS.ProxyPassword)) {
-            Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyPassword -Value "$(Decrypt-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTSecurity.PasswordString)")"
-        } else {
-            Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyPassword -Value ''
-        }
-    } else {
-        'No Server password or settings exist. No Proxy information will be available.'
-    }
-#Write-Host "Keys are here"; $Key
-#    Catch{
-#      Write-Error "ERROR: There was a problem retrieving Proxy Information. $($Error[0])"
-#    }#End Catch
   }#End Process
   
   End{
-      if (($Key)) {
-          $Key
-      }
+    $Key = New-Object -TypeName PSObject
+    $Null=Get-LTServiceKeys
+    Try {
+        $Private:LTSI=Get-LTServiceInfo -EA 0
+        If (($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
+            $Private:LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
+            If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyServerURL'}) -and ($Private:LTSS.ProxyServerURL -like 'http*://*')) {
+                Write-Debug "Proxy Detected. Setting ProxyServerURL to $($Private:LTSS.ProxyServerURL)"
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name Enabled -Value $True
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value "$($Private:LTSS.ProxyServerURL)"
+            } Else {
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name Enabled -Value $False
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value ''
+            }#End If
+            if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyUsername'}) -and ($Private:LTSS.ProxyUsername)) {
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyUsername -Value "$(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTServiceKeys.PasswordString)")"
+                Write-Debug "Setting ProxyUsername to $($Key.ProxyUsername)"
+            } Else {
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyUsername -Value ''
+            }#End If
+            If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyPassword'}) -and ($Private:LTSS.ProxyPassword)) {
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyPassword -Value "$(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"
+                Write-Debug "Setting ProxyPassword to $($Key.ProxyPassword)"
+            } Else {
+                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyPassword -Value ''
+            }#End If
+        } Else {
+            Write-Verbose "Verbose: No Server password or settings exist. No Proxy information will be available."
+        }#End If
+
+        If (($Key)) {
+            $Script:LTProxy=$Key
+            return $Script:LTProxy
+        } Else {
+            Write-Debug "No Server password or settings exist. Attempting Automatic Detection"
+            $Null=Set-LTProxy -DetectProxy
+            return $Script:LTProxy
+        }#End If
+    }#End Try
+    Catch{
+      Write-Error "ERROR: There was a problem retrieving Proxy Information. $($Error[0])"
+    }#End Catch
   }#End End
 }#End Function Get-LTProxy
+#endregion Get-LTProxy
+
+Function Initialize-LTServiceModule{
+#region [Initialize-LTServiceModule]--------------------------------------------
+
+    #Initialize LTServiceNetWebClient Object
+    $Script:LTServiceNetWebClient = New-Object System.Net.WebClient
+
+    #Populate $Script:LTServiceKeys Object
+    $Script:LTServiceKeys = New-Object -TypeName PSObject
+    Add-Member -InputObject $Script:LTServiceKeys -MemberType NoteProperty -Name ServerPasswordString -Value ''
+    Add-Member -InputObject $Script:LTServiceKeys -MemberType NoteProperty -Name PasswordString -Value ''
+
+    #Populate $LTProxy Object
+    $Script:LTProxy = New-Object -TypeName PSObject
+    Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name ProxyServerURL -Value ''
+    Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name ProxyUsername -Value ''
+    Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name ProxyPassword -Value ''
+    Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name Enabled -Value ''
+
+    #Populate $LTWebProxy Object
+    $Script:LTWebProxy=new-object System.Net.WebProxy
+    $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
+
+    $Null=Get-LTProxy
+
+}#End Initialize-LTServiceModule
+#endregion Initialize-LTServiceModule
 
 #endregion Functions
 
-#Initialize Module
-$Script:LTNetWebClient = New-Object System.Net.WebClient
+$PublicFunctions=((@"
+Get-LTError
+Get-LTLogging
+Get-LTProbeErrors
+Get-LTProxy
+Get-LTServiceInfo
+Get-LTServiceInfoBackup
+Get-LTServiceSettings
+Hide-LTAddRemove
+Install-LTService
+New-LTServiceBackup
+Redo-LTService
+Rename-LTAddRemove
+Reset-LTService
+Restart-LTService
+Set-LTLogging
+Set-LTProxy
+Show-LTAddRemove
+Start-LTService
+Stop-LTService
+Test-LTPorts
+Uninstall-LTService
+"@) -replace "[`r`n]+","`n") -split "[`n]"
 
-#Populate $Script:LTSecurity Object
-$Script:LTSecurity = New-Object -TypeName PSObject
-Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name ServerPasswordString -Value ''
-Add-Member -InputObject $Script:LTSecurity -MemberType NoteProperty -Name PasswordString -Value ''
-$Private:LTSI=Get-LTServiceInfo -EA 0
-if (($Private:LTSI) -and ($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
-    $Script:LTSecurity.ServerPasswordString=$(Decrypt-LTSecurity -InputString "$($Private:LTSI.ServerPassword)")
-    if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'Password'})) {
-        $Script:LTSecurity.PasswordString=$(Decrypt-LTSecurity -InputString "$($Private:LTSI.Password)" -Key "$($Script:LTSecurity.ServerPasswordString)")
-    } else {
-        $Script:LTSecurity.PasswordString=''
-    }
+$PublicAlias=((@"
+ReInstall-LTService
+"@) -replace "[`r`n]+","`n") -split "[`n]"
+
+If ($MyInvocation.Line -contains 'Import-Module') {
+    Export-ModuleMember -Function $PublicFunctions -Alias $PublicAlias -EA 0 -WA 0
 }
 
-#Populate $LTProxy Object
-$Script:LTProxy = New-Object -TypeName PSObject
-Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name ProxyServerURL -Value ''
-Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name ProxyUsername -Value ''
-Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name ProxyPassword -Value ''
-Add-Member -InputObject $Script:LTProxy -MemberType NoteProperty -Name Enabled -Value ''
-
-#Populate $LTWebProxy Object
-$Script:LTWebProxy=new-object System.Net.WebProxy
-$Script:LTNetWebClient.Proxy=$Script:LTWebProxy
-
-#Examples to control Proxy:
-# Set-LTProxy -ResetProxy
-
-# Set-LTProxy -DetectProxy
-
-# Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com:8080'
-
-# Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com:8080' -ProxyUsername 'Test-User' -ProxyPassword 'SomeFancyPassword'
-
-# Set-LTProxy -ProxyServerURL 'proxyhostname.fqdn.com:8080' -EncodedProxyUsername '1GzhlerwMy0ElG9XNgiIkg==' -EncodedProxyPassword 'Duft4r7fekTp5YnQL9F0V9TbP7sKzm0n'
+$Null=Initialize-LTServiceModule
