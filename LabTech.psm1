@@ -1891,7 +1891,7 @@ Function Invoke-LTServiceCommand {
     This function will allow you to execute all known commands against an agent.
 
 .NOTES
-    Version:        1.1
+    Version:        1.0
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  2/2/2018
