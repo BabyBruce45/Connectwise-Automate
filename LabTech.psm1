@@ -1472,7 +1472,7 @@ Function Test-LTPorts{
             #Get all processes that are using LTTrayPort (Default 42000)
             $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
             foreach ($line in $netstat) {
-                $process += ($line -split '  {3,}')[-1]
+                $processes += ($line -split '  {3,}')[-1]
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             if ($processes) {
