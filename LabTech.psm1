@@ -23,8 +23,8 @@
     Update Date: 1/23/2018
     Purpose/Change: Updates to address 32-bit vs. 64-bit operations.
 
-    Update Date: 6/10/2017
-    Purpose/Change: Updates for pipeline input, support for multiple servers
+    Update Date: 2/1/2018
+    Purpose/Change: Updates for support of Proxy Settings. Enabled -WhatIf processing for many functions.
 
 #>
 
@@ -48,7 +48,7 @@ exit $lastexitcode
 }
 
 #Ignore SSL errors
-add-type @"
+Add-Type -Debug:$False @"
     using System.Net;
     using System.Security.Cryptography.X509Certificates;
     public class TrustAllCertsPolicy : ICertificatePolicy {
@@ -103,18 +103,18 @@ Function Get-LTServiceInfo{
   Process{
     Write-Verbose "Checking for LT Service registry keys."
     Try{
-        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select * -exclude $exclude
-        if (-not ($key|Get-Member|Where {$_.Name -match 'BasePath'})) {
+        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select-Object * -exclude $exclude
+        if (-not ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
                 if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
-                        $BasePath = (Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop|Select-object -Expand ImagePath -EA 0).Split('"')|Where {$_}|Select -First 1|Get-Item|Select-object -Expand DirectoryName -EA 0
+                        $BasePath = (Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop|Select-object -Expand ImagePath -EA 0).Split('"')|Where-Object {$_}|Select-Object -First 1|Get-Item|Select-object -Expand DirectoryName -EA 0
                     } Else {
                         $BasePath = "$env:windir\LTSVC" 
                     }
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
         }
           $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0))
-        if (($key|Get-Member|Where {$_.Name -match 'Server Address'})) {
-        $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|Foreach {$_.Trim()}
+        if (($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+        $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
         Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
     }
     }#End Try
@@ -164,7 +164,7 @@ Function Get-LTServiceSettings{
   
   Process{
     Try{
-        Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -ErrorAction Stop | Select * -exclude $exclude
+        Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service\Settings -ErrorAction Stop | Select-Object * -exclude $exclude
     }#End Try
     
     Catch{
@@ -200,7 +200,7 @@ Function Restart-LTService{
     http://labtechconsulting.com
 #> 
   
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     Param()
   
   Begin{
@@ -211,7 +211,7 @@ Function Restart-LTService{
   
   Process{
     Try{
-      LabTech\Stop-LTService
+      Stop-LTService
       Start-LTService
     }#End Try
     
@@ -250,7 +250,7 @@ Function Stop-LTService{
 .LINK
     http://labtechconsulting.com
 #>   
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     Param()
   
     Begin{
@@ -263,21 +263,23 @@ Function Stop-LTService{
     Process{
         Try{
             Write-Verbose "Stopping Labtech Services"
-            ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue
-            $timeout = new-timespan -Minutes 1
-            $sw = [diagnostics.stopwatch]::StartNew()
-            Write-Host -NoNewline "Waiting for Services to Stop." 
-            Do {
-                Write-Host -NoNewline '.'
-                Start-Sleep 2
-                $svcRun = ('LTService','LTSvcMon') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Stopped'} | Measure-Object | Select-Object -Expand Count
-            } until ($sw.elapsed -gt $timeout -or $svcRun -eq 0)
-            Write-Host ""
-            $sw.Stop()
-            if ($svcRun -gt 0) {
-                Write-Verbose "Services did not stop. Terminating Processes after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
+            If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
+                ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue -Nowait
+                $timeout = new-timespan -Minutes 1
+                $sw = [diagnostics.stopwatch]::StartNew()
+                Write-Host -NoNewline "Waiting for Services to Stop." 
+                Do {
+                    Write-Host -NoNewline '.'
+                    Start-Sleep 2
+                    $svcRun = ('LTService','LTSvcMon') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Stopped'} | Measure-Object | Select-Object -Expand Count
+                } until ($sw.elapsed -gt $timeout -or $svcRun -eq 0)
+                Write-Host ""
+                $sw.Stop()
+                if ($svcRun -gt 0) {
+                    Write-Verbose "Services did not stop. Terminating Processes after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
+                }
+                Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
             }
-            Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
         }#End Try
 
         Catch{
@@ -306,7 +308,7 @@ Function Start-LTService{
     Next it will start the services.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -320,12 +322,15 @@ Function Start-LTService{
 
     Update Date: 12/14/2017
     Purpose/Change: Will increment the tray port if a conflict is detected.
-        
-.LINK
+
+    Update Date: 2/1/2018
+    Purpose/Change: Added support for -WhatIf. Added Service Control Command to request agent check-in immediately after startup.
+
+    .LINK
     http://labtechconsulting.com
 #>
     
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param()   
     
     Begin{
@@ -334,11 +339,18 @@ Function Start-LTService{
         }
         #Kill all processes that are using the tray port 
         [array]$processes = @()
-        $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
+        $Port = (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand TrayPort -EA 0)
         if (-not ($Port)) {$Port = "42000"}
     }#End Begin
     
     Process{
+
+        Write-Verbose "Verbose: Issuing Service Control Request for stopping LTTray Processes"
+        $Null=SC.EXE CONTROL LTService 142 2>''
+
+        Write-Verbose "Verbose: Issuing Service Control Request for stopping LabVNC Processes"
+        $Null=SC.EXE CONTROL LTService 141 2>''
+
         Try{
             $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
             foreach ($line in $netstat){
@@ -346,23 +358,30 @@ Function Start-LTService{
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             if ($processes) {
-                    foreach ($proc in $processes){
-                    Write-Output "Process ID:$proc is using port $Port. Killing process."
-                    try{Stop-Process -ID $proc -Force -Verbose -EA Stop}
-                    catch {
-                        Write-Warning "There was an issue killing the following process: $proc"
-                        Write-Warning "This generally  means that a 'protected application' is using this port."
-                        $newPort = [int]$port + 1
-                        if($newPort > 42009) {$newPort = 42000}
-                        Write-Warning "Setting tray port to $newPort."
-                        New-ItemProperty -Path "HKLM:\Software\Labtech\Service" -Name TrayPort -PropertyType String -Value $newPort -Force | Out-Null
+                foreach ($proc in $processes){
+                    If ($PSCmdlet.ShouldProcess("$proc", "Terminate Process")) {
+                        Write-Output "Process ID:$proc is using port $Port. Killing process."
+                        try{Stop-Process -ID $proc -Force -Verbose -EA Stop}
+                        catch {
+                            Write-Warning "There was an issue killing the following process: $proc"
+                            Write-Warning "This generally means that a 'protected application' is using this port."
+                            $newPort = [int]$port + 1
+                            if($newPort > 42009) {$newPort = 42000}
+                            Write-Warning "Setting tray port to $newPort."
+                            New-ItemProperty -Path "HKLM:\Software\Labtech\Service" -Name TrayPort -PropertyType String -Value $newPort -Force | Out-Null
+                        }
                     }
                 }
             }
             @('LTService','LTSvcMon') | ForEach-Object {
-                if (Get-Service $_ -EA 0) {Set-Service $_ -StartupType Automatic -EA 0; Start-Service $_ -EA 0}
+                if (Get-Service $_ -EA 0) {
+                    Set-Service $_ -StartupType Automatic -EA 0
+                    Start-Service $_ -EA 0
+                    Write-Debug "Executed Start-Service for $($_)"
+                }
             }
-        }#End Try
+
+    }#End Try
     
         Catch{
             Write-Error "ERROR: There was an error starting the LabTech services. $($Error[0])" -ErrorAction Stop
@@ -371,12 +390,33 @@ Function Start-LTService{
     
     End
     {
-        If ($?){
-            Write-Output "Services Started successfully."
-        }
-        else{
-                $($Error[0])
-        }
+        If ($PSCmdlet.ShouldProcess("LTService", "Issue Service Control Request for Agent Status Update")) {
+            If ($?){
+                $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Running'} | Measure-Object | Select-Object -Expand Count
+                if ($svcRun -gt 0) {
+                    $timeout = new-timespan -Minutes 1
+                    $sw = [diagnostics.stopwatch]::StartNew()
+                    Write-Host -NoNewline "Waiting for Services to Start." 
+                    Do {
+                        Write-Host -NoNewline '.'
+                        Start-Sleep 2
+                        $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Running'} | Measure-Object | Select-Object -Expand Count
+                    } until ($sw.elapsed -gt $timeout -or $svcRun -eq 0)
+                    Write-Host ""
+                    $sw.Stop()
+                }
+                if ($svcRun -eq 0) {
+                    Write-Verbose "Verbose: Issuing Service Control Request for Agent Status Update to LTService"
+                    $Null=SC.EXE CONTROL LTService 136 2>''
+                    Write-Output "Services Started successfully."
+                } Else {
+                    Write-Output "Service Start was issued but service has not reached Running state."
+                }
+            }
+            else{
+                    $($Error[0])
+            }
+        }#End If
     }#End End
 }#End Function Start-LTService
 #endregion Start-LTService
@@ -433,7 +473,7 @@ Function Uninstall-LTService{
 .LINK
     http://labtechconsulting.com
 #> 
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [string[]]$Server,
@@ -448,7 +488,7 @@ Function Uninstall-LTService{
         if ($Backup){
             New-LTServiceBackup
         }
-        $BasePath = $(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)
+        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand BasePath -EA 0)
         if (-not ($BasePath)){$BasePath = "$env:windir\LTSVC"}
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
         $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
@@ -495,7 +535,7 @@ Function Uninstall-LTService{
   
     Process{
         if (-not ($Server)){
-            $Server = Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-Object -Expand 'Server' -EA 0
+            $Server = Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand 'Server' -EA 0
         }
         if (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
@@ -504,7 +544,7 @@ Function Uninstall-LTService{
         if (-not ($GoodServer)) {
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     Try{
-                        if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
+                        if ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
                         Write-Debug "Testing Server Response and Version: $SvrVerCheck"
                         $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
@@ -514,7 +554,7 @@ Function Uninstall-LTService{
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
+                        $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|ForEach-Object {$_.matches}|Select-Object -Expand value
                         if ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
@@ -537,7 +577,9 @@ Function Uninstall-LTService{
                         }
                         else{
                             Write-Debug "Downloading Agent_Install.msi from $installer"
-                            $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                            If ($PSCmdlet.ShouldProcess("$installer", "DownloadFile")) {
+                                $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                            }
                         }
 
                         #Using $SVer results gathered above.
@@ -564,7 +606,9 @@ Function Uninstall-LTService{
                         else{
                             Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                             #Download Agent_Uninstall.exe
-                            $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
+                            If ($PSCmdlet.ShouldProcess("$uninstaller", "DownloadFile")) {
+                                $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
+                            }
                         }
                         If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and (Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
                             $GoodServer = $Svr
@@ -597,35 +641,41 @@ Function Uninstall-LTService{
 				
                 #Kill all running processes from %ltsvcdir%   
                 if (Test-Path $BasePath){
-                    $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select -Expand Name|Foreach {$_.Trim('.exe')})
+                    $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand Name|ForEach-Object {$_.Trim('.exe')})
                     if ($Executables) {
-						Write-Verbose "Terminating LabTech Processes if found running: $($Executables)"
-						Get-Process | Where-Object {$Executables -contains $_.ProcessName } | ForEach-Object {
-							Write-Debug "Terminating Process $($_.ProcessName)"
-							$($_) | Stop-Process -Force -ErrorAction SilentlyContinue
-						}
+                        Write-Verbose "Terminating LabTech Processes if found running: $($Executables)"
+                        Get-Process | Where-Object {$Executables -contains $_.ProcessName } | ForEach-Object {
+                            Write-Debug "Terminating Process $($_.ProcessName)"
+                            $($_) | Stop-Process -Force -ErrorAction SilentlyContinue
+                        }
                     }
 
-                    #Unregister DLL
-                    regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
-                }#End If     
+                    If ($PSCmdlet.ShouldProcess("$($BasePath)\wodVPN.dll", "Unregister DLL")) {
+                        #Unregister DLL
+                        regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
+                    }
+                }#End If
 
-                If ((Test-Path "$($env:windir)\temp\LabTech\Installer\Agent_Install.msi")) {
-                    #Run MSI uninstaller for current installer
-                    Write-Verbose "Launching Uninstall: msiexec.exe $($xarg)"
-                    Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
-                    Start-Sleep -Seconds 5
-                } else {
-                    Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
+                If ($PSCmdlet.ShouldProcess("msiexec.exe $($xarg)", "Execute Uninstall")) {
+                    If ((Test-Path "$($env:windir)\temp\LabTech\Installer\Agent_Install.msi")) {
+                        #Run MSI uninstaller for current installer
+                        Write-Verbose "Launching Uninstall: msiexec.exe $($xarg)"
+                        Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
+                        Start-Sleep -Seconds 5
+                    } else {
+                        Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
+                    }
                 }
 
-                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
-                    #Run Agent_Uninstall.exe
-                    Write-Verbose "Launching $($env:windir)\temp\Agent_Uninstall.exe"
-                    Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
-                    Start-Sleep -Seconds 5
-                } else {
-                    Write-Verbose "WARNING: $($env:windir)\temp\Agent_Uninstall.exe was not found."
+                If ($PSCmdlet.ShouldProcess("$($env:windir)\temp\Agent_Uninstall.exe", "Execute Uninstall")) {
+                    If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
+                        #Run Agent_Uninstall.exe
+                        Write-Verbose "Launching $($env:windir)\temp\Agent_Uninstall.exe"
+                        Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
+                        Start-Sleep -Seconds 5
+                    } else {
+                        Write-Verbose "WARNING: $($env:windir)\temp\Agent_Uninstall.exe was not found."
+                    }
                 }
 
                 Write-Verbose "Removing Services if found."
@@ -659,11 +709,15 @@ Function Uninstall-LTService{
                 }
 				
                 #Post Uninstall Check
-                if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
-                    Start-Sleep -Seconds 10
+                If ($PSCmdlet.ShouldProcess("$($env:windir)\ltsvc", "Check Folder")) {
+                    if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+                        Start-Sleep -Seconds 10
+                    }
                 }
-                if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
-                    Write-Error "Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
+                If ($PSCmdlet.ShouldProcess("HKLM\Software\LabTech\Service", "Check Registry Key")) {
+                    if((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+                        Write-Error "Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
+                    }
                 }
 
             }#End Try
@@ -751,7 +805,7 @@ Function Install-LTService{
 .LINK
     http://labtechconsulting.com
 #> 
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true, Mandatory=$True)]
         [string[]]$Server,
@@ -787,9 +841,11 @@ Function Install-LTService{
 
             if ([version]$OSVersion -gt [version]'6.2'){
                 try{
-                    $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
-                    if ($Install.RestartNeeded) {
-                        Write-Output ".NET 3.5 installed but a reboot is needed."
+                    If ( $PSCmdlet.ShouldProcess("NetFx3", "Enable-WindowsOptionalFeature") ) {
+                        $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
+                        if ($Install.RestartNeeded) {
+                            Write-Output ".NET 3.5 installed but a reboot is needed."
+                        }
                     }
                 }
                 catch{
@@ -798,20 +854,22 @@ Function Install-LTService{
                 }
             }
             else{
-                $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
-                If ($Result -contains "State : Enabled"){
-                    # also check reboot status, unsure of possible outputs
-                    # Restart Required : Possible 
+                If ( $PSCmdlet.ShouldProcess("NetFx3", "Add Windows Feature") ) {
+                    $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
+                    If ($Result -contains "State : Enabled"){
+                        # also check reboot status, unsure of possible outputs
+                        # Restart Required : Possible 
 
-                    Write-Warning ".Net Framework 3.5 has been installed and enabled." 
-                } 
-                Else { 
-                    Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
-                    if (!($Force)) { Write-Error $Result -ErrorAction Stop }
-                } 
+                        Write-Warning ".Net Framework 3.5 has been installed and enabled." 
+                    } 
+                    Else { 
+                        Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
+                        if (!($Force)) { Write-Error $Result -ErrorAction Stop }
+                    }
+                }
             }
             
-            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where-Object{ $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
+            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where-Object{ $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version
         }
 
         if (-not ($DotNet -like '3.5.*')){
@@ -848,7 +906,7 @@ Function Install-LTService{
         Foreach ($Svr in $Server) {
             if (-not ($GoodServer)) {
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
-                    if ($Svr -notlike 'http*://*') {$Svr = "http://$($Svr)"}
+                    if ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                     Try {
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
                         Write-Debug "Testing Server Response and Version: $SvrVerCheck"
@@ -858,7 +916,7 @@ Function Install-LTService{
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|foreach {$_.matches}|select -Expand value
+                        $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{3}\.[0-9]{3}'|ForEach-Object {$_.matches}|Select-Object -Expand value
                         if ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
@@ -880,14 +938,16 @@ Function Install-LTService{
                             Continue
                         } else {
                             Write-Debug "Downloading Agent_Install.msi from $installer"
-                            $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-                            If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
-                                $GoodServer = $Svr
-                                Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
-                            } else {
-                                Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
-                                Continue
-                            }
+                            If ( $PSCmdlet.ShouldProcess($installer, "DownloadFile") ) {
+                                $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                                If (Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") {
+                                    $GoodServer = $Svr
+                                    Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
+                                } else {
+                                    Write-Warning "Error encountered downloading from $($Svr). No installation file was received."
+                                    Continue
+                                }
+                            } else {$GoodServer = $Svr}
                         }
                     }
                     Catch {
@@ -909,10 +969,12 @@ Function Install-LTService{
             $PasswordArg = "SERVERPASS=$ServerPassword"
         }
         if ($GoodServer) {
-            if((Test-Path "$($env:windir)\ltsvc" -EA 0) -or (Test-Path "$($env:windir)\temp\_ltudpate" -EA 0) -or (Test-Path registry::HKLM\Software\LabTech\Service -EA 0) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service -EA 0)){
-                Write-Warning "Previous install detected. Calling Uninstall-LTService"
-                Uninstall-LTService -Server $GoodServer 
-                Start-Sleep 10
+            If ( $PSCmdlet.ShouldProcess("Folder and Registry Paths", "Checking for Remnants from Previous Installations") ) {
+                if((Test-Path "$($env:windir)\ltsvc" -EA 0) -or (Test-Path "$($env:windir)\temp\_ltudpate" -EA 0) -or (Test-Path registry::HKLM\Software\LabTech\Service -EA 0) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service -EA 0)){
+                    Write-Warning "Previous install detected. Calling Uninstall-LTService"
+                    Uninstall-LTService -Server $GoodServer 
+                    Start-Sleep 10
+                }
             }
 
             Write-Output "Starting Install."
@@ -920,23 +982,37 @@ Function Install-LTService{
 
             Try{
                 Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
-                Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
+                If ( $PSCmdlet.ShouldProcess("msiexec.exe $($iarg)", "Execute Install") ) {
+                    Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
+                }
                 If (($Script:LTProxy.Enabled) -eq $True) {
-                    Write-Verbose "Verbose: Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
-                    Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
+                    If ( $PSCmdlet.ShouldProcess($Script:LTProxy.ProxyServerURL, "Configure Agent Proxy") ) {
+                        Write-Verbose "Verbose: Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
+                        $timeout = new-timespan -Minutes 3
+                        $sw = [diagnostics.stopwatch]::StartNew()
+                        Write-Verbose "Verifying Agent Settings have been committed to the registry." 
+                        Do {
+                            Start-Sleep 5
+                            $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ServerAddress' -EA 0)
+                        } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
+                        $sw.Stop()
+                        Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
+                    }
                 } else {
                     Write-Verbose "Verbose: No Proxy Configuration has been specified - Continuing."
                 }#End If
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
                 Write-Host -NoNewline "Waiting for agent to register." 
-                Do {
-                    Write-Host -NoNewline '.'
-                    Start-Sleep 2
-                    $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
-                } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
-                $sw.Stop()
-                Write-Verbose "Completed wait for LabTech Installation after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
+                If ( $PSCmdlet.ShouldProcess("LTService","Monitor Agent Registration") ) {
+                    Do {
+                        Write-Host -NoNewline '.'
+                        Start-Sleep 2
+                        $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ID' -EA 0)
+                    } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
+                    $sw.Stop()
+                    Write-Verbose "Completed wait for LabTech Installation after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
+                }
                 If ($Hide) {Hide-LTAddRemove}
             }#End Try
 
@@ -944,21 +1020,27 @@ Function Install-LTService{
                 Write-Error "ERROR: There was an error during the install process. $($Error[0])" -ErrorAction Stop
             }#End Catch
 
-            $tmpLTSI = Get-LTServiceInfo -EA 0
-            if (($tmpLTSI)) {
-                if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
-                    Write-Host ""
-                    Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
-                    if (($Rename) -and $Rename -notmatch 'False'){
-                        Rename-LTAddRemove -Name $Rename
+            If ( $PSCmdlet.ShouldProcess("LTService","Verify Install") ) {
+                $tmpLTSI = Get-LTServiceInfo -EA 0 -Verbose:$False
+                if (($tmpLTSI)) {
+                    if (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
+                        Write-Host ""
+                        Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
+                        if (($Rename) -and $Rename -notmatch 'False'){
+                            Rename-LTAddRemove -Name $Rename
+                        }
                     }
                 }
-            }
-            else {
-                if (($Error)) {
-                    Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log $($Error[0])" -ErrorAction Stop
-                } else {
-                    Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log" -ErrorAction Stop
+                else {
+                    if (($Error)) {
+                        Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log $($Error[0])" -ErrorAction Stop
+                    } else {
+                        Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log" -ErrorAction Stop
+                    }
+                }
+            } else {
+                if (($Rename) -and $Rename -notmatch 'False'){
+                    Rename-LTAddRemove -Name $Rename
                 }
             }
         } else {
@@ -1033,7 +1115,7 @@ Function Redo-LTService{
 .LINK
     http://labtechconsulting.com
 #> 
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true, ValueFromPipeline=$True)]
         [string[]]$Server,
@@ -1050,7 +1132,7 @@ Function Redo-LTService{
     Begin{
         Clear-Variable PasswordArg, RenameArg, Svr, ServerList, Settings -EA 0 #Clearing Variables for use
         # Gather install stats from registry or backed up settings
-        $Settings = Get-LTServiceInfo -ErrorAction SilentlyContinue
+        $Settings = Get-LTServiceInfo -EA 0 -Verbose:$False
         if (-not ($Settings)){
             $Settings = Get-LTServiceInfoBackup -ErrorAction SilentlyContinue
         }
@@ -1157,7 +1239,7 @@ Function Get-LTError{
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -Expand BasePath -EA 0)
+        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log. $($Error[0])" -ErrorAction Stop
@@ -1257,7 +1339,7 @@ Function Reset-LTService{
             $Location=$true
             $MAC=$true
         }
-        Write-Output "OLD ID: $(Get-LTServiceInfo|Select-object -Expand ID -EA 0) LocationID: $(Get-LTServiceInfo|Select-object -Expand LocationID -EA 0) MAC: $(Get-LTServiceInfo|Select-object -Expand MAC -EA 0)"
+        Write-Output "OLD ID: $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand ID -EA 0) LocationID: $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand LocationID -EA 0) MAC: $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand MAC -EA 0)"
         
     }#End Begin
   
@@ -1279,7 +1361,7 @@ Function Reset-LTService{
             Start-LTService
             $timeout = new-timespan -Minutes 1
             $sw = [diagnostics.stopwatch]::StartNew()
-            While (!(Get-LTServiceInfo|Select-object -Expand ID -EA 0) -or !(Get-LTServiceInfo|Select-object -Expand LocationID -EA 0) -or !(Get-LTServiceInfo|Select-object -Expand MAC -EA 0) -and $($sw.elapsed) -lt $timeout){
+            While (!(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand ID -EA 0) -or !(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand LocationID -EA 0) -or !(Get-LTServiceInfo|Select-object -Expand MAC -EA 0) -and $($sw.elapsed) -lt $timeout){
                 Write-Host -NoNewline '.'
                 Start-Sleep 2
             }
@@ -1294,7 +1376,7 @@ Function Reset-LTService{
     End{
         if ($?){
             Write-Output ""
-            Write-Output "NEW ID: $(Get-LTServiceInfo|Select-object -Expand ID -EA 0) LocationID: $(Get-LTServiceInfo|Select-object -Expand LocationID -EA 0) MAC: $(Get-LTServiceInfo|Select-object -Expand MAC -EA 0)"
+            Write-Output "NEW ID: $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand ID -EA 0) LocationID: $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand LocationID -EA 0) MAC: $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand MAC -EA 0)"
         }
         Else {$Error[0]}
     }#End End
@@ -1323,7 +1405,7 @@ Function Hide-LTAddRemove{
 .LINK
     http://labtechconsulting.com
 #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param()
 
     Begin{
@@ -1383,7 +1465,7 @@ Function Show-LTAddRemove{
 .LINK
     http://labtechconsulting.com
 #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param()
 
     Begin{
@@ -1415,8 +1497,8 @@ Function Show-LTAddRemove{
                     $RegImport | Out-File "$env:TEMP\LT.reg" -Force
                     Start-Process -Wait -FilePath reg -ArgumentList "import $($env:TEMP)\LT.reg"
                     Remove-Item "$env:TEMP\LT.reg" -Force
-                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$((Get-LTServiceInfo|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
-                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$((Get-LTServiceInfo|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$((Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
+                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$((Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
                 }
             }
         }#End Try
@@ -1453,7 +1535,7 @@ Function Test-LTPorts{
     If it is unable to find LT currently installed it will try Get-LTServiceInfoBackup
 
 .PARAMETER Quiet
-    This will return a bool for connectivity to the Server
+    This will return a boolean for connectivity status to the Server
 
 .NOTES
     Version:        1.5
@@ -1530,13 +1612,13 @@ Function Test-LTPorts{
 
         if (-not ($Quiet)){
             #Learn LTTrayPort if available.
-            $Port = (Get-LTServiceInfo -EA 0|Select-Object -Expand TrayPort -EA 0)
+            $Port = (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand TrayPort -EA 0)
             if (-not ($Port) -or $Port -notmatch '^\d+$') {$Port=42000}
             [array]$processes = @()
             #Get all processes that are using LTTrayPort (Default 42000)
             $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
             foreach ($line in $netstat) {
-                $process += ($line -split '  {3,}')[-1]
+                $processes += ($line -split '  {3,}')[-1]
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
             if ($processes) {
@@ -1554,7 +1636,7 @@ Function Test-LTPorts{
     Process{
         if (-not ($Server)){
             Write-Verbose 'No Server Input - Checking for names.'
-            $Server = Get-LTServiceInfo -EA 0|Select-Object -Expand 'Server'
+            $Server = Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand 'Server'
         }
         foreach ($svr in $Server) {
                 if ($Quiet){
@@ -1564,7 +1646,7 @@ Function Test-LTPorts{
 
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
                     Try{
-                        $CleanSvr = ($Svr -replace("(http|https)://",'')|Foreach {$_.Trim()})
+                        $CleanSvr = ($Svr -replace 'https?://',''|ForEach-Object {$_.Trim()})
                         Write-Output "Testing connectivity to required TCP ports"
                         TestPort -ComputerName $CleanSvr -Port 70
                         TestPort -ComputerName $CleanSvr -Port 80
@@ -1643,7 +1725,7 @@ Function Get-LTLogging{
             Write-Output "Current logging level: Verbose"
         }
         else{
-            Write-Error "ERROR: Unknown Logging level $(Get-LTServiceInfo|Select-object -Expand Debuging -EA 0)" -ErrorAction Stop
+            Write-Error "ERROR: Unknown Logging level $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand Debuging -EA 0)" -ErrorAction Stop
         }
     }    
   }#End End
@@ -1739,7 +1821,7 @@ Function Get-LTProbeErrors{
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -ErrorAction SilentlyContinue|Select-object -Expand BasePath -EA 0)
+        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
         if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
             Write-Error "ERROR: Unable to find log. $($Error[0])" -ErrorAction Stop
@@ -1797,7 +1879,7 @@ Function New-LTServiceBackup{
       
   Begin{
     Clear-Variable LTPath,BackupPath,Keys,Path,Result,Reg,RegPath -EA 0 #Clearing Variables for use
-    $LTPath = "$(Get-LTServiceInfo -EA 0|Select-Object -Expand BasePath -EA 0)"
+    $LTPath = "$(Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand BasePath -EA 0)"
     if (-not ($LTPath)) {
       Write-Error "ERROR: Unable to find LTSvc folder path." -ErrorAction Stop
     }
@@ -1886,12 +1968,12 @@ Function Get-LTServiceInfoBackup{
   
   Process{
     Try{
-        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select * -exclude $exclude
-        if (($key|Get-Member|Where {$_.Name -match 'BasePath'})) {
+        $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select-Object * -exclude $exclude
+        if (($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
             $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath)
         }
-        if (($key|Get-Member|Where {$_.Name -match 'Server Address'})) {
-        $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|Foreach {$_.Trim()}
+        if (($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+        $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
         Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
     }
     }#End Try
@@ -1968,12 +2050,12 @@ Function Rename-LTAddRemove{
             Write-Error "There was an error setting the registry key value. $($Error[0])" -ErrorAction Stop
         }#End Catch
 
-        if (($Private:PublisherName)){
+        if (($PublisherName)){
             Try{
                 foreach($RegRoot in $PublisherRegRoots){
                     if (Get-ItemProperty $RegRoot -Name Publisher -ErrorAction SilentlyContinue){
-                        Write-Verbose "Verbose: Setting $($RegRoot)\Publisher=$($Private:PublisherName)"
-                        Set-ItemProperty $RegRoot -Name Publisher -Value $Private:PublisherName
+                        Write-Verbose "Verbose: Setting $($RegRoot)\Publisher=$($PublisherName)"
+                        Set-ItemProperty $RegRoot -Name Publisher -Value $PublisherName
                     }#End If
                 }#End foreach
             }#End Try
@@ -1987,8 +2069,8 @@ Function Rename-LTAddRemove{
     End{
         if ($?){
             Write-Output "LabTech is now listed as $($Name) in Add/Remove Programs."
-            if (($Private:PublisherName)){
-                Write-Output "The Publisher is now listed as $($Private:PublisherName)."
+            if (($PublisherName)){
+                Write-Output "The Publisher is now listed as $($PublisherName)."
             }#End If
         }
         else {$Error[0]}
@@ -2001,51 +2083,102 @@ Function Get-LTServiceKeys{
 Param(
 )
     End {
-        $Private:LTSI=Get-LTServiceInfo -EA 0
-        if (($Private:LTSI) -and ($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
-            $Script:LTServiceKeys.ServerPasswordString=$(ConvertFrom-LTSecurity -InputString "$($Private:LTSI.ServerPassword)")
-            if (($Private:LTSI|Get-Member|Where {$_.Name -eq 'Password'})) {
-                $Script:LTServiceKeys.PasswordString=$(ConvertFrom-LTSecurity -InputString "$($Private:LTSI.Password)" -Key "$($Script:LTServiceKeys.ServerPasswordString)")
+        $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False
+        if (($LTSI) -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
+            write-Debug "Decoding Server Password."
+            $Script:LTServiceKeys.ServerPasswordString=$(ConvertFrom-LTSecurity -InputString "$($LTSI.ServerPassword)")
+            if (($LTSI|Get-Member|Where-Object {$_.Name -eq 'Password'})) {
+                Write-Debug "Decoding Agent Password."
+                $Script:LTServiceKeys.PasswordString=$(ConvertFrom-LTSecurity -InputString "$($LTSI.Password)" -Key "$($Script:LTServiceKeys.ServerPasswordString)")
             } else {
                 $Script:LTServiceKeys.PasswordString=''
             }
+        } else {
+            $Script:LTServiceKeys.ServerPasswordString=''
         }
     }#End 
-}#End Function ConvertTo-LTSecurity
-#endregion ConvertTo-LTSecurity
+}#End Function Get-LTServiceKeys
+#endregion Get-LTServiceKeys
 
 Function ConvertFrom-LTSecurity{
 #region [ConvertFrom-LTSecurity]----------------------------------------------------
 Param(
-    [parameter(Mandatory = $true, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
-    [string]$InputString,
+    [parameter(Mandatory = $true, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 1)]
+    [string[]]$InputString,
+
+    [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $True)]
+    [string[]]$Key,
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
-    [AllowNull()]
-    [AllowEmptyString()]
-    [AllowEmptyCollection()]
-    [string]$Key='Thank you for using LabTech.'
+    [switch]$Force=$True
 )
 
     Begin {
-        $Private:_initializationVector = [byte[]](240, 3, 45, 29, 0, 76, 173, 59);
-        $numarray=[System.Convert]::FromBase64String($InputString)
-        $ddd = new-object System.Security.Cryptography.TripleDESCryptoServiceProvider
-        $ddd.key=(new-Object Security.Cryptography.MD5CryptoServiceProvider).ComputeHash([Text.Encoding]::UTF8.GetBytes($Key))
-        $ddd.IV=$_initializationVector
-        $dd=$ddd.CreateDecryptor()
-        try {
-            $str=[System.Text.Encoding]::UTF8.GetString($dd.TransformFinalBlock($numarray,0,($numarray.Length)))
-        } catch {
-            $str=[System.Text.Encoding]::ASCII.GetString($dd.TransformFinalBlock($numarray,0,($numarray.Length)))
+        $DefaultKey='Thank you for using LabTech.'
+        $_initializationVector = [byte[]](240, 3, 45, 29, 0, 76, 173, 59)
+        $NoKeyPassed=$False
+        $DecodedString=$Null
+        $DecodeString=$Null
+    }#End Begin
+
+    Process {
+        If ($Key -eq $Null) {
+            $NoKeyPassed=$True
+            $Key=$DefaultKey
         }
-        Finally
-        {
-            if ($dd) {try {$dd.Dispose()} catch {$dd.Clear()}}
-            if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
-        }
-        return $str
-   }#End Begin
+        foreach ($testInput in $InputString) {
+            $DecodeString=$Null
+            foreach ($testKey in $Key) {
+                If ($DecodeString -eq $Null) {
+                    If ($testKey -eq $Null) {
+                        $NoKeyPassed=$True
+                        $testKey=$DefaultKey
+                    }#End If
+                    try {
+                        $numarray=[System.Convert]::FromBase64String($testInput)
+                        $ddd = new-object System.Security.Cryptography.TripleDESCryptoServiceProvider
+                        $ddd.key=(new-Object Security.Cryptography.MD5CryptoServiceProvider).ComputeHash([Text.Encoding]::UTF8.GetBytes($testKey))
+                        $ddd.IV=$_initializationVector
+                        $dd=$ddd.CreateDecryptor()
+                        $DecodeString=[System.Text.Encoding]::UTF8.GetString($dd.TransformFinalBlock($numarray,0,($numarray.Length)))
+                        $DecodedString+=@($DecodeString)
+                    } catch {
+                    }#End Catch
+
+                    Finally {
+                        if ((Get-Variable -Name dd -Scope 0 -EA 0)) {try {$dd.Dispose()} catch {$dd.Clear()}}
+                        if ((Get-Variable -Name ddd -Scope 0 -EA 0)) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
+                    }#End Finally
+                } else {
+                }#End If
+            }#End foreach
+            if ($DecodeString -eq $Null) {
+                If ($Force) {
+                    If (($NoKeyPassed)) {
+                        $DecodeString=ConvertFrom-LTSecurity -InputString "$($testInput)" -Key '' -Force:$False
+                        if (-not ($DecodeString -eq $Null)) {
+                            $DecodedString+=@($DecodeString)
+                        }
+                    } Else {
+                        $DecodeString=ConvertFrom-LTSecurity -InputString "$($testInput)"
+                        if (-not ($DecodeString -eq $Null)) {
+                            $DecodedString+=@($DecodeString)
+                        }
+                    }#End If
+                } Else {
+                }#End If
+            }#End If
+        }#End foreach
+    }#End Process
+
+    End {
+        If ($DecodedString -eq $Null) {
+            Write-Debug "Failed to Decode string: '$($InputString)'"
+            return $Null
+        } else {
+            return $DecodedString
+        }#End If
+   }#End End
 
 }#End Function ConvertFrom-LTSecurity
 #endregion ConvertFrom-LTSecurity
@@ -2063,15 +2196,21 @@ Param(
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
-    [string]$Key='Thank you for using LabTech.'
+    $Key
 )
 
     Begin {
-        $Private:_initializationVector = [byte[]](240, 3, 45, 29, 0, 76, 173, 59)
+        $_initializationVector = [byte[]](240, 3, 45, 29, 0, 76, 173, 59)
+        $DefaultKey='Thank you for using LabTech.'
+
+        If ($Key -eq $Null) {
+            $Key=$DefaultKey
+        }#End If
+
         try {
             $numarray=[System.Text.Encoding]::UTF8.GetBytes($InputString)
         } catch {
-            $numarray=[System.Text.Encoding]::ASCII.GetBytes($InputString)
+            try { $numarray=[System.Text.Encoding]::ASCII.GetBytes($InputString) } catch {}
         }
         try {
             $ddd = new-object System.Security.Cryptography.TripleDESCryptoServiceProvider
@@ -2157,31 +2296,22 @@ Function Set-LTProxy{
     http://labtechconsulting.com
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess=$true)]
 Param(
     [parameter(Mandatory = $False, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 0)]
-    [AllowNull()]
-    [AllowEmptyString()]
-    [AllowEmptyCollection()]
-    [string[]]$ProxyServerURL,
+    [string]$ProxyServerURL,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 1)]
-    [AllowNull()]
-    [AllowEmptyString()]
-    [AllowEmptyCollection()]
-    [string[]]$ProxyUsername,
+    [string]$ProxyUsername,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True, Position = 2)]
-    [AllowNull()]
-    [AllowEmptyString()]
-    [AllowEmptyCollection()]
-    [string[]]$ProxyPassword,
+    [string]$ProxyPassword,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
-    [string[]]$EncodedProxyUsername,
+    [string]$EncodedProxyUsername,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
-    [string[]]$EncodedProxyPassword,
+    [string]$EncodedProxyPassword,
 
     [parameter(Mandatory = $False, ValueFromPipeline = $False, ValueFromPipelineByPropertyName = $True)]
     [switch]$DetectProxy,
@@ -2193,6 +2323,14 @@ Param(
 
     Begin {
         Clear-Variable LTServiceSettingsReg,LTServiceSettingsChanged,LTSS,LTServiceRestartNeeded,proxyURL,proxyUser,proxyPass,passwd,Svr -EA 0 #Clearing Variables for use
+
+        If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+            $LTServiceSettingsReg = 'HKLM:\SOFTWARE\LabTech\Service\Settings'
+        } Else {$LTServiceSettingsReg=$Null}
+        
+    }#End Begin
+
+    Process{
 
         If (
 (($ResetProxy -eq $True) -and (($DetectProxy -eq $True) -or ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword))) -or 
@@ -2207,73 +2345,72 @@ Param(
             Else {Write-Error "Set-LTProxy: Required Parameters Missing"; Break}
         }
 
-        If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            $LTServiceSettingsReg = 'HKLM:\SOFTWARE\LabTech\Service\Settings'
-        } Else {$LTServiceSettingsReg=$Null}
-        
-    }#End Begin
-
-    Process{
         Try{
             If ($($ResetProxy) -eq $True) {
                 Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
-                $Script:LTProxy.Enabled=$False
-                $Script:LTProxy.ProxyServerURL=''
-                $Script:LTProxy.ProxyUsername=''
-                $Script:LTProxy.ProxyPassword=''
-                $Script:LTWebProxy=New-Object System.Net.WebProxy
-                $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
+                If ( $PSCmdlet.ShouldProcess("LTProxy", "Clear") ) {
+                    $Script:LTProxy.Enabled=$False
+                    $Script:LTProxy.ProxyServerURL=''
+                    $Script:LTProxy.ProxyUsername=''
+                    $Script:LTProxy.ProxyPassword=''
+                    $Script:LTWebProxy=New-Object System.Net.WebProxy
+                    $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
+                }#End If
             } ElseIf ($($DetectProxy) -eq $True) {
                 Write-Verbose "Verbose: DetectProxy selected. Attempting to Detect Proxy Settings."
-                $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
-                $Script:LTProxy.Enabled=$True
-                $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy('http://www.connectwise.com').Authority
-                if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains 'www.connectwise.com')) {
-                    $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|foreach {$_.matches}|select -Expand value
-                }
-                if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -eq $Null)) {
-                    $Script:LTProxy.ProxyServerURL=''
-                    $Script:LTProxy.Enabled=$False
-                } else {
+                If ( $PSCmdlet.ShouldProcess("LTProxy", "Detect") ) {
+                    $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
                     $Script:LTProxy.Enabled=$True
-                    Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL)"
-                }
-                $Script:LTProxy.ProxyUsername=''
-                $Script:LTProxy.ProxyPassword=''
-                $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
-            } ElseIf (($ProxyServerURL)) {
-                foreach ($ProxyURL in $ProxyServerURL) {
-                    $Script:LTWebProxy = New-Object System.Net.WebProxy($ProxyURL, $true);
-                    $Script:LTProxy.Enabled=$True
-                    $Script:LTProxy.ProxyServerURL=$ProxyURL
-                }
-                Write-Verbose "Verbose: Setting Proxy URL to: $($ProxyServerURL)"
-                If ((($ProxyUsername) -and ($ProxyPassword)) -or (($EncodedProxyUsername) -and ($EncodedProxyPassword))) {
-                    If (($ProxyUsername)) {
-                        foreach ($proxyUser in $ProxyUsername) {
-                            $Script:LTProxy.ProxyUsername=$proxyUser
-                        }
+                    $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy('http://www.connectwise.com').Authority
+                    if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains 'www.connectwise.com')) {
+                        $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|ForEach-Object {$_.matches}|Select-Object -Expand value
                     }
-                    If (($EncodedProxyUsername)) {
-                        foreach ($proxyUser in $EncodedProxyUsername) {
-                            $Script:LTProxy.ProxyUsername=$(ConvertFrom-LTSecurity -InputString "$($proxyUser)" -Key "$($Script:LTServiceKeys.PasswordString)")
-                        }
+                    if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -eq $Null)) {
+                        $Script:LTProxy.ProxyServerURL=''
+                        $Script:LTProxy.Enabled=$False
+                    } else {
+                        $Script:LTProxy.Enabled=$True
+                        Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL)"
                     }
-                    If (($ProxyPassword)) {
-                        foreach ($proxyPass in $ProxyPassword) {
-                            $Script:LTProxy.ProxyPassword=$proxyPass
-                            $passwd = ConvertTo-SecureString $proxyPass -AsPlainText -Force; ## Website credentials
-                        }
-                    }
-                    If (($EncodedProxyPassword)) {
-                        foreach ($proxyPass in $EncodedProxyPassword) {
-                            $Script:LTProxy.ProxyPassword=$(ConvertFrom-LTSecurity -InputString "$($proxyPass)" -Key "$($Script:LTServiceKeys.PasswordString)")
-                            $passwd = ConvertTo-SecureString $Script:LTProxy.ProxyPassword -AsPlainText -Force; ## Website credentials
-                        }
-                    }
-                    $Script:LTWebProxy.Credentials = New-Object System.Management.Automation.PSCredential ($Script:LTProxy.ProxyUsername, $passwd);
+                    $Script:LTProxy.ProxyUsername=''
+                    $Script:LTProxy.ProxyPassword=''
+                    $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
                 }#End If
-                $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
+            } ElseIf (($ProxyServerURL)) {
+                If ( $PSCmdlet.ShouldProcess("LTProxy", "Set") ) {
+                    foreach ($ProxyURL in $ProxyServerURL) {
+                        $Script:LTWebProxy = New-Object System.Net.WebProxy($ProxyURL, $true);
+                        $Script:LTProxy.Enabled=$True
+                        $Script:LTProxy.ProxyServerURL=$ProxyURL
+                    }
+                    Write-Verbose "Verbose: Setting Proxy URL to: $($ProxyServerURL)"
+                    If ((($ProxyUsername) -and ($ProxyPassword)) -or (($EncodedProxyUsername) -and ($EncodedProxyPassword))) {
+                        If (($ProxyUsername)) {
+                            foreach ($proxyUser in $ProxyUsername) {
+                                $Script:LTProxy.ProxyUsername=$proxyUser
+                            }
+                        }
+                        If (($EncodedProxyUsername)) {
+                            foreach ($proxyUser in $EncodedProxyUsername) {
+                                $Script:LTProxy.ProxyUsername=$(ConvertFrom-LTSecurity -InputString "$($proxyUser)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))
+                            }
+                        }
+                        If (($ProxyPassword)) {
+                            foreach ($proxyPass in $ProxyPassword) {
+                                $Script:LTProxy.ProxyPassword=$proxyPass
+                                $passwd = ConvertTo-SecureString $proxyPass -AsPlainText -Force; ## Website credentials
+                            }
+                        }
+                        If (($EncodedProxyPassword)) {
+                            foreach ($proxyPass in $EncodedProxyPassword) {
+                                $Script:LTProxy.ProxyPassword=$(ConvertFrom-LTSecurity -InputString "$($proxyPass)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))
+                                $passwd = ConvertTo-SecureString $Script:LTProxy.ProxyPassword -AsPlainText -Force; ## Website credentials
+                            }
+                        }
+                        $Script:LTWebProxy.Credentials = New-Object System.Management.Automation.PSCredential ($Script:LTProxy.ProxyUsername, $passwd);
+                    }#End If
+                    $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
+                }#End If
             }#End If
         }#End Try
     
@@ -2285,44 +2422,46 @@ Param(
     End{
         If ($?){
             $LTServiceSettingsChanged=$False
-            If (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue){
-                $Private:LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
-                If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyServerURL'})) {
-                    If ($Private:LTSS.ProxyServerURL -like 'http*://*') {
-                        If ($Private:LTSS.ProxyServerURL -ne "http://$($Script:LTProxy.ProxyServerURL)") {
-                            Write-Debug "ProxyServerURL Changed: Old Value: $($Private:LTSS.ProxyServerURL) New Value: http://$($Script:LTProxy.ProxyServerURL)"
+            If (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue) {
+                $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
+                If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
+                    If ($LTSS.ProxyServerURL -match 'https?://.+') {
+                        If ($LTSS.ProxyServerURL -ne "http://$($Script:LTProxy.ProxyServerURL)") {
+                            Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: http://$($Script:LTProxy.ProxyServerURL)"
                             $LTServiceSettingsChanged=$True
                         }
                     } Else {
-                        If (($Private:LTSS.ProxyServerURL -ne $Script:LTProxy.ProxyServerURL) -and ($Private:LTSS.ProxyServerURL -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
-                            Write-Debug "ProxyServerURL Changed: Old Value: $($Private:LTSS.ProxyServerURL) New Value: $($Script:LTProxy.ProxyServerURL)"
+                        If (($LTSS.ProxyServerURL -ne $Script:LTProxy.ProxyServerURL) -and ($LTSS.ProxyServerURL -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
+                            Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: $($Script:LTProxy.ProxyServerURL)"
                             $LTServiceSettingsChanged=$True
                         }
                     }
                 }#End If
-                if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyUsername'}) -and ($Private:LTSS.ProxyUsername)) {
-                    If ($(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTServiceKeys.PasswordString)") -ne $Script:LTProxy.ProxyUsername) {
-                        Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTServiceKeys.PasswordString)") New Value: $($Script:LTProxy.ProxyUsername)"
+                if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
+                    If ($(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyUsername) {
+                        Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyUsername)"
                         $LTServiceSettingsChanged=$True
                     }
                 }#End If
-                If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyPassword'}) -and ($Private:LTSS.ProxyPassword)) {
-                    If ($(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)") -ne $Script:LTProxy.ProxyPassword) {
-                        Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)") New Value: $($Script:LTProxy.ProxyPassword)"
+                If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
+                    If ($(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyPassword) {
+                        Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyPassword)"
                         $LTServiceSettingsChanged=$True
                     }
                 }#End If
                 If ($LTServiceSettingsChanged -eq $True) {
                     If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue|Where-Object {$_.Status -match 'Running'})) { $LTServiceRestartNeeded=$True; try {Stop-LTService -EA 0 -WA 0} catch {} }
                     Write-Verbose "Verbose: Updating LabTech\Service\Settings Proxy Configuration."
-                    $Svr=$($Script:LTProxy.ProxyServerURL); If (($Svr -ne '') -and ($Svr -notlike 'http*://*')) {$Svr = "http://$($Svr)"}
-                    @{"ProxyServerURL"=$Svr;
-                    "ProxyUserName"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTServiceKeys.PasswordString)")";
-                    "ProxyPassword"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
+                    If ( $PSCmdlet.ShouldProcess("LTService Registry", "Update") ) {
+                        $Svr=$($Script:LTProxy.ProxyServerURL); If (($Svr -ne '') -and ($Svr -notmatch 'https?://')) {$Svr = "http://$($Svr)"}
+                        @{"ProxyServerURL"=$Svr;
+                        "ProxyUserName"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTServiceKeys.PasswordString)")";
+                        "ProxyPassword"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
+                    }#End If
                     If ($LTServiceRestartNeeded -eq $True) { try {Start-LTService -EA 0 -WA 0} catch {} }
                 }#End If
             }#End If
-        }
+        }#End If
         Else {$Error[0]}
     }#End End
 
@@ -2358,7 +2497,7 @@ Function Get-LTProxy{
 
   Begin
   {
-    Clear-Variable Key,LTSI,LTSS -EA 0 #Clearing Variables for use
+    Clear-Variable CustomProxyObject,LTSI,LTSS -EA 0 #Clearing Variables for use
     Write-Verbose "Checking for LT Agent Proxy Settings."
   }#End Begin
   
@@ -2366,38 +2505,41 @@ Function Get-LTProxy{
   }#End Process
   
   End{
-    $Key = New-Object -TypeName PSObject
+    $CustomProxyObject = New-Object -TypeName PSObject
     $Null=Get-LTServiceKeys
     Try {
-        $Private:LTSI=Get-LTServiceInfo -EA 0
-        If (($Private:LTSI|Get-Member|Where {$_.Name -eq 'ServerPassword'})) {
-            $Private:LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
-            If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyServerURL'}) -and ($Private:LTSS.ProxyServerURL -like 'http*://*')) {
-                Write-Debug "Proxy Detected. Setting ProxyServerURL to $($Private:LTSS.ProxyServerURL)"
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name Enabled -Value $True
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value "$($Private:LTSS.ProxyServerURL)"
+        $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False
+        If (($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
+            $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
+            If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($LTSS.ProxyServerURL -Match 'https?://.+')) {
+                Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS.ProxyServerURL)"
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name Enabled -Value $True
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyServerURL -Value "$($LTSS.ProxyServerURL)"
             } Else {
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name Enabled -Value $False
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyServerURL -Value ''
+                Write-Debug "Setting ProxyServerURL to "
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name Enabled -Value $False
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyServerURL -Value ''
             }#End If
-            if (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyUsername'}) -and ($Private:LTSS.ProxyUsername)) {
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyUsername -Value "$(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyUsername)" -Key "$($Script:LTServiceKeys.PasswordString)")"
-                Write-Debug "Setting ProxyUsername to $($Key.ProxyUsername)"
+            if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
+                Write-Debug "Setting ProxyUsername to $($CustomProxyObject.ProxyUsername)"
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyUsername -Value "$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
             } Else {
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyUsername -Value ''
+                Write-Debug "Setting ProxyUsername to "
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyUsername -Value ''
             }#End If
-            If (($Private:LTSS|Get-Member|Where {$_.Name -eq 'ProxyPassword'}) -and ($Private:LTSS.ProxyPassword)) {
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyPassword -Value "$(ConvertFrom-LTSecurity -InputString "$($Private:LTSS.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"
-                Write-Debug "Setting ProxyPassword to $($Key.ProxyPassword)"
+            If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
+                Write-Debug "Setting ProxyPassword to $($CustomProxyObject.ProxyPassword)"
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyPassword -Value "$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
             } Else {
-                Add-Member -InputObject $Key -MemberType NoteProperty -Name ProxyPassword -Value ''
+                Write-Debug "Setting ProxyPassword to "
+                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyPassword -Value ''
             }#End If
         } Else {
             Write-Verbose "Verbose: No Server password or settings exist. No Proxy information will be available."
         }#End If
 
-        If (($Key)) {
-            $Script:LTProxy=$Key
+        If (($CustomProxyObject)) {
+            $Script:LTProxy=$CustomProxyObject
             return $Script:LTProxy
         } Else {
             Write-Debug "No Server password or settings exist. Attempting Automatic Detection"
