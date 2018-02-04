@@ -2078,6 +2078,92 @@ Function Rename-LTAddRemove{
 }#End Function Rename-LTAddRemove
 #endregion Rename-LTAddRemove
 
+Function Invoke-LTServiceCommand {
+#region [Invoke-LTServiceCommand]--------------------------------------------------
+<#
+.SYNOPSIS
+    This function tells the agent to execute the desired command.
+
+.DESCRIPTION
+    This function will allow you to execute all known commands against an agent.
+
+.NOTES
+    Version:        1.0
+    Author:         Chris Taylor
+    Website:        labtechconsulting.com
+    Creation Date:  2/2/2018
+    Purpose/Change: Initial script development
+    Thanks:         Gavin Stone, for finding the command list
+
+.LINK
+    http://labtechconsulting.com
+#>  
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$True, Position=1, ValueFromPipeline)]
+        [ValidateSet("Update Schedule",
+                     "Send Inventory",
+                     "Send Drives",
+                     "Send Processes",
+                     "Send Spyware List",
+                     "Send Apps",
+                     "Send Events",
+                     "Send Printers",
+                     "Send Status",
+                     "Send Screen",
+                     "Send Services",
+                     "Analyze Network",
+                     "Write Last Contact Date",
+                     "Kill VNC",
+                     "Kill Trays",
+                     "Send Patch Reboot",
+                     "Run App Care Update",
+                     "Start App Care Daytime Patching")][string[]]$Command
+    )
+
+    begin {
+        $Service = Get-Service 'ltservice' -ErrorAction Stop
+    }
+    process {
+        foreach ($Cmd in $Command) {
+            Try{
+                switch($Cmd){
+                    'Update Schedule' {$CommandID = 128}
+                    'Send Inventory' {$CommandID = 129}
+                    'Send Drives' {$CommandID = 130}
+                    'Send Processes' {$CommandID = 131}
+                    'Send Spyware List'{$CommandID = 132}
+                    'Send Apps' {$CommandID = 133}
+                    'Send Events' {$CommandID = 134}
+                    'Send Printers' {$CommandID = 135}
+                    'Send Status' {$CommandID = 136}
+                    'Send Screen' {$CommandID = 137}
+                    'Send Services' {$CommandID = 138}
+                    'Analyze Network' {$CommandID = 139}
+                    'Write Last Contact Date' {$CommandID = 140}
+                    'Kill VNC' {$CommandID = 141}
+                    'Kill Trays' {$CommandID = 142}
+                    'Send Patch Reboot' {$CommandID = 143}
+                    'Run App Care Update' {$CommandID = 144}
+                    'Start App Care Daytime Patching' {$CommandID = 145}
+                    default {"Invalid entry"}
+                }
+                $Service.ExecuteCommand($CommandID)
+            } # End Try
+    
+            Catch{
+              Write-Warning $_.Exception
+            } # End Catch
+
+        } # End foreach
+
+    } # End Process
+
+    end{}    
+
+} # End Function Invoke-LTServiceCommand
+#endregion Invoke-LTServiceCommand
+
 Function Get-LTServiceKeys{
 #region [Get-LTServiceKeys]--------------------------------------------------------
 Param(
