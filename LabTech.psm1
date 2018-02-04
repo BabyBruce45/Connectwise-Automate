@@ -155,7 +155,7 @@ Function Get-LTServiceSettings{
     Param ()
       
   Begin{
-    Write-Verbose "Verbose: Checking for registry keys."
+    Write-Verbose "Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\Settings') -eq $False){
         Write-Error "ERROR: Unable to find LTSvc settings. Make sure the agent is installed." -ErrorAction Stop
     }
@@ -203,27 +203,32 @@ Function Restart-LTService{
     [CmdletBinding(SupportsShouldProcess=$true)]
     Param()
   
-  Begin{
-    if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-        Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
-    }
-  }#End Begin
-  
-  Process{
-    Try{
-      Stop-LTService
-      Start-LTService
-    }#End Try
-    
-    Catch{
-      Write-Error "ERROR: There was an error restarting the services. $($Error[0])" -ErrorAction Stop
-    }#End Catch
-  }#End Process
-  
-  End{
-    If ($?){Write-Output "Services Restarted successfully."}
-    Else {$Error[0]}
-  }#End End
+    Begin{
+        if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+            Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
+        }
+    }#End Begin
+
+    Process{
+        Try{
+            Stop-LTService
+        }#End Try
+        Catch{
+            Write-Error "ERROR: There was an error restarting the services. $($Error[0])" -ErrorAction Stop
+        }#End Catch
+
+        Try{
+            Start-LTService
+        }#End Try
+        Catch{
+            Write-Error "ERROR: There was an error starting the services. $($Error[0])" -ErrorAction Stop
+        }#End Catch
+    }#End Process
+
+    End{
+        If ($?){Write-Output "Services Restarted successfully."}
+        Else {$Error[0]}
+    }#End End
 }#End Function Restart-LTService
 #endregion Restart-LTService
 
@@ -261,6 +266,9 @@ Function Stop-LTService{
     }#End Begin
 
     Process{
+
+        Invoke-LTServiceCommand ("Kill VNC","Kill Trays")
+
         Try{
             Write-Verbose "Stopping Labtech Services"
             If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
@@ -345,12 +353,6 @@ Function Start-LTService{
     
     Process{
 
-        Write-Verbose "Verbose: Issuing Service Control Request for stopping LTTray Processes"
-        $Null=SC.EXE CONTROL LTService 142 2>''
-
-        Write-Verbose "Verbose: Issuing Service Control Request for stopping LabVNC Processes"
-        $Null=SC.EXE CONTROL LTService 141 2>''
-
         Try{
             $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
             foreach ($line in $netstat){
@@ -406,11 +408,10 @@ Function Start-LTService{
                     $sw.Stop()
                 }
                 if ($svcRun -eq 0) {
-                    Write-Verbose "Verbose: Issuing Service Control Request for Agent Status Update to LTService"
-                    $Null=SC.EXE CONTROL LTService 136 2>''
+                    Invoke-LTServiceCommand 'Send Status'
                     Write-Output "Services Started successfully."
                 } Else {
-                    Write-Output "Service Start was issued but service has not reached Running state."
+                    Write-Output "Service Start was issued but LTService has not reached Running state."
                 }
             }
             else{
@@ -987,7 +988,7 @@ Function Install-LTService{
                 }
                 If (($Script:LTProxy.Enabled) -eq $True) {
                     If ( $PSCmdlet.ShouldProcess($Script:LTProxy.ProxyServerURL, "Configure Agent Proxy") ) {
-                        Write-Verbose "Verbose: Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
+                        Write-Verbose "Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
                         $timeout = new-timespan -Minutes 3
                         $sw = [diagnostics.stopwatch]::StartNew()
                         Write-Verbose "Verifying Agent Settings have been committed to the registry." 
@@ -999,7 +1000,7 @@ Function Install-LTService{
                         Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
                     }
                 } else {
-                    Write-Verbose "Verbose: No Proxy Configuration has been specified - Continuing."
+                    Write-Verbose "No Proxy Configuration has been specified - Continuing."
                 }#End If
                 $timeout = new-timespan -Minutes 3
                 $sw = [diagnostics.stopwatch]::StartNew()
@@ -1700,7 +1701,7 @@ Function Get-LTLogging{
     Param ()
       
   Begin{
-    Write-Verbose "Verbose: Checking for registry keys."
+    Write-Verbose "Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\settings') -eq $False){
         Write-Error "ERROR: Unable to find logging settings for LTSvc. Make sure the agent is installed." -ErrorAction Stop
     }
@@ -1887,7 +1888,7 @@ Function New-LTServiceBackup{
     $Keys = "HKLM\SOFTWARE\LabTech"
     $RegPath = "$BackupPath\LTBackup.reg"
     
-    Write-Verbose "Verbose: Checking for registry keys."
+    Write-Verbose "Checking for registry keys."
     if ((Test-Path ($Keys -replace '^(H[^\\]*)','$1:')) -eq $False){
         Write-Error "ERROR: Unable to find registry information on LTSvc. Make sure the agent is installed." -ErrorAction Stop
         Return
@@ -1958,7 +1959,7 @@ Function Get-LTServiceInfoBackup{
     Param ()
       
   Begin{
-    Write-Verbose "Verbose: Checking for registry keys."
+    Write-Verbose "Checking for registry keys."
     If ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
         Write-Error "ERROR: Unable to find backup information on LTSvc. Use New-LTServiceBackup to create a settings backup."
         Return
@@ -2037,10 +2038,10 @@ Function Rename-LTAddRemove{
         Try{
             foreach($RegRoot in $RegRoots){
                 if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue){
-                    Write-Verbose "Verbose: Setting $($RegRoot)\ProductName=$($Name)"
+                    Write-Verbose "Setting $($RegRoot)\ProductName=$($Name)"
                     Set-ItemProperty $RegRoot -Name ProductName -Value $Name
                 } elseif (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue){
-                    Write-Verbose "Verbose: Setting $($RegRoot)\HiddenProductName=$($Name)"
+                    Write-Verbose "Setting $($RegRoot)\HiddenProductName=$($Name)"
                     Set-ItemProperty $RegRoot -Name HiddenProductName -Value $Name
                 }
             }#End Foreach
@@ -2054,7 +2055,7 @@ Function Rename-LTAddRemove{
             Try{
                 foreach($RegRoot in $PublisherRegRoots){
                     if (Get-ItemProperty $RegRoot -Name Publisher -ErrorAction SilentlyContinue){
-                        Write-Verbose "Verbose: Setting $($RegRoot)\Publisher=$($PublisherName)"
+                        Write-Verbose "Setting $($RegRoot)\Publisher=$($PublisherName)"
                         Set-ItemProperty $RegRoot -Name Publisher -Value $PublisherName
                     }#End If
                 }#End foreach
@@ -2098,7 +2099,7 @@ Function Invoke-LTServiceCommand {
 .LINK
     http://labtechconsulting.com
 #>  
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     Param(
         [Parameter(Mandatory=$True, Position=1, ValueFromPipeline)]
         [ValidateSet("Update Schedule",
@@ -2122,10 +2123,12 @@ Function Invoke-LTServiceCommand {
     )
 
     begin {
-        $Service = Get-Service 'ltservice' -ErrorAction Stop
+        $Service = Get-Service 'LTService' -ErrorAction Stop
     }
     process {
+        If ($Service.Status -ne 'Running') {Write-Warning "Service 'LTService' is not running. Cannot send service command"; return}
         foreach ($Cmd in $Command) {
+            $CommandID=$Null
             Try{
                 switch($Cmd){
                     'Update Schedule' {$CommandID = 128}
@@ -2148,9 +2151,14 @@ Function Invoke-LTServiceCommand {
                     'Start App Care Daytime Patching' {$CommandID = 145}
                     default {"Invalid entry"}
                 }
-                $Service.ExecuteCommand($CommandID)
+                If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command $($Cmd) ($($CommandID))")) {
+                    If (($CommandID)) {
+                        Write-Debug "Sending service command $($Cmd) ($($CommandID)) to 'LTService'"
+                        $Service.ExecuteCommand($CommandID)
+                    }
+                }
             } # End Try
-    
+
             Catch{
               Write-Warning $_.Exception
             } # End Catch
@@ -2433,7 +2441,7 @@ Param(
 
         Try{
             If ($($ResetProxy) -eq $True) {
-                Write-Verbose "Verbose: ResetProxy selected. Clearing Proxy Settings."
+                Write-Verbose "ResetProxy selected. Clearing Proxy Settings."
                 If ( $PSCmdlet.ShouldProcess("LTProxy", "Clear") ) {
                     $Script:LTProxy.Enabled=$False
                     $Script:LTProxy.ProxyServerURL=''
@@ -2443,7 +2451,7 @@ Param(
                     $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
                 }#End If
             } ElseIf ($($DetectProxy) -eq $True) {
-                Write-Verbose "Verbose: DetectProxy selected. Attempting to Detect Proxy Settings."
+                Write-Verbose "DetectProxy selected. Attempting to Detect Proxy Settings."
                 If ( $PSCmdlet.ShouldProcess("LTProxy", "Detect") ) {
                     $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
                     $Script:LTProxy.Enabled=$True
@@ -2469,7 +2477,7 @@ Param(
                         $Script:LTProxy.Enabled=$True
                         $Script:LTProxy.ProxyServerURL=$ProxyURL
                     }
-                    Write-Verbose "Verbose: Setting Proxy URL to: $($ProxyServerURL)"
+                    Write-Verbose "Setting Proxy URL to: $($ProxyServerURL)"
                     If ((($ProxyUsername) -and ($ProxyPassword)) -or (($EncodedProxyUsername) -and ($EncodedProxyPassword))) {
                         If (($ProxyUsername)) {
                             foreach ($proxyUser in $ProxyUsername) {
@@ -2537,7 +2545,7 @@ Param(
                 }#End If
                 If ($LTServiceSettingsChanged -eq $True) {
                     If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue|Where-Object {$_.Status -match 'Running'})) { $LTServiceRestartNeeded=$True; try {Stop-LTService -EA 0 -WA 0} catch {} }
-                    Write-Verbose "Verbose: Updating LabTech\Service\Settings Proxy Configuration."
+                    Write-Verbose "Updating LabTech\Service\Settings Proxy Configuration."
                     If ( $PSCmdlet.ShouldProcess("LTService Registry", "Update") ) {
                         $Svr=$($Script:LTProxy.ProxyServerURL); If (($Svr -ne '') -and ($Svr -notmatch 'https?://')) {$Svr = "http://$($Svr)"}
                         @{"ProxyServerURL"=$Svr;
@@ -2621,7 +2629,7 @@ Function Get-LTProxy{
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyPassword -Value ''
             }#End If
         } Else {
-            Write-Verbose "Verbose: No Server password or settings exist. No Proxy information will be available."
+            Write-Verbose "No Server password or settings exist. No Proxy information will be available."
         }#End If
 
         If (($CustomProxyObject)) {
