@@ -2687,6 +2687,7 @@ Get-LTServiceInfoBackup
 Get-LTServiceSettings
 Hide-LTAddRemove
 Install-LTService
+Invoke-LTServiceCommand
 New-LTServiceBackup
 Redo-LTService
 Rename-LTAddRemove
