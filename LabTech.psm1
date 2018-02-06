@@ -2101,7 +2101,7 @@ Function Invoke-LTServiceCommand {
 #>  
     [CmdletBinding(SupportsShouldProcess=$true)]
     Param(
-        [Parameter(Mandatory=$True, Position=1, ValueFromPipeline)]
+        [Parameter(Mandatory=$True, Position=1, ValueFromPipeline=$True)]
         [ValidateSet("Update Schedule",
                      "Send Inventory",
                      "Send Drives",
