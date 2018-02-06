@@ -2516,7 +2516,7 @@ Param(
     End{
         If ($?){
             $LTServiceSettingsChanged=$False
-            If (($LTServiceSettingsReg) -ne $Null -and (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue) {
+            If (($LTServiceSettingsReg) -ne $Null -and (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue)) {
                 $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
                 If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
                     If ($LTSS.ProxyServerURL -match 'https?://.+') {
