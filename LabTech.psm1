@@ -272,7 +272,7 @@ Function Stop-LTService{
         Try{
             Write-Verbose "Stopping Labtech Services"
             If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
-                ('LTService','LTSvcMon') | Stop-Service -ErrorAction SilentlyContinue -Nowait
+                ('LTService','LTSvcMon') | Foreach-Object (sc.exe stop "$($_)" 2>'') 
                 $timeout = new-timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
                 Write-Host -NoNewline "Waiting for Services to Stop." 
