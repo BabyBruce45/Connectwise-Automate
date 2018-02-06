@@ -2599,7 +2599,6 @@ Function Get-LTProxy{
   }#End Process
   
   End{
-    $CustomProxyObject = New-Object -TypeName PSObject
     $Null=Get-LTServiceKeys
     Try {
         $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False
@@ -2607,33 +2606,32 @@ Function Get-LTProxy{
             $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
             If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($LTSS.ProxyServerURL -Match 'https?://.+')) {
                 Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS.ProxyServerURL)"
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name Enabled -Value $True
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyServerURL -Value "$($LTSS.ProxyServerURL)"
+                $Script:LTProxy.Enabled=$True
+                $Script:LTProxy.ProxyServerURL="$($LTSS.ProxyServerURL)"
             } Else {
                 Write-Debug "Setting ProxyServerURL to "
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name Enabled -Value $False
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyServerURL -Value ''
+                $Script:LTProxy.Enabled=$False
+                $Script:LTProxy.ProxyServerURL=''
             }#End If
             if (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
-                Write-Debug "Setting ProxyUsername to $($CustomProxyObject.ProxyUsername)"
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyUsername -Value "$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                $Script:LTProxy.ProxyUsername="$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                Write-Debug "Setting ProxyUsername to $($Script:LTProxy.ProxyUsername)"
             } Else {
                 Write-Debug "Setting ProxyUsername to "
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyUsername -Value ''
+                $Script:LTProxy.ProxyUsername=''
             }#End If
             If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
-                Write-Debug "Setting ProxyPassword to $($CustomProxyObject.ProxyPassword)"
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyPassword -Value "$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                $Script:LTProxy.ProxyPassword="$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                Write-Debug "Setting ProxyPassword to $($Script:LTProxy.ProxyPassword)"
             } Else {
                 Write-Debug "Setting ProxyPassword to "
-                Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyPassword -Value ''
+                $Script:LTProxy.ProxyPassword=''
             }#End If
         } Else {
             Write-Verbose "No Server password or settings exist. No Proxy information will be available."
         }#End If
 
-        If (($CustomProxyObject)) {
-            $Script:LTProxy=$CustomProxyObject
+        If ($Script:LTProxy.Enabled -eq $True) {
             return $Script:LTProxy
         } Else {
             Write-Debug "No Server password or settings exist. Attempting Automatic Detection"
