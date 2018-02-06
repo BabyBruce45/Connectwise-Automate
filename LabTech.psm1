@@ -104,7 +104,7 @@ Function Get-LTServiceInfo{
     Write-Verbose "Checking for LT Service registry keys."
     Try{
         $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select-Object * -exclude $exclude
-        if (-not ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
+        if (($key) -ne $Null -and -not ($key|Get-Member |Where-Object {$_.Name -match 'BasePath'})) {
                 if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
                         $BasePath = (Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop|Select-object -Expand ImagePath -EA 0).Split('"')|Where-Object {$_}|Select-Object -First 1|Get-Item|Select-object -Expand DirectoryName -EA 0
                     } Else {
@@ -113,7 +113,7 @@ Function Get-LTServiceInfo{
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
         }
           $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0))
-        if (($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+        if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
         $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
         Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
     }
@@ -1970,10 +1970,10 @@ Function Get-LTServiceInfoBackup{
   Process{
     Try{
         $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select-Object * -exclude $exclude
-        if (($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
+        if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
             $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath)
         }
-        if (($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+        if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
         $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
         Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
     }
@@ -2181,7 +2181,7 @@ Param(
         if (($LTSI) -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
             write-Debug "Decoding Server Password."
             $Script:LTServiceKeys.ServerPasswordString=$(ConvertFrom-LTSecurity -InputString "$($LTSI.ServerPassword)")
-            if (($LTSI|Get-Member|Where-Object {$_.Name -eq 'Password'})) {
+            if (($LTSI) -ne $Null -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'Password'})) {
                 Write-Debug "Decoding Agent Password."
                 $Script:LTServiceKeys.PasswordString=$(ConvertFrom-LTSecurity -InputString "$($LTSI.Password)" -Key "$($Script:LTServiceKeys.ServerPasswordString)")
             } else {
@@ -2518,7 +2518,7 @@ Param(
             $LTServiceSettingsChanged=$False
             If (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue) {
                 $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
-                If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
+                If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
                     If ($LTSS.ProxyServerURL -match 'https?://.+') {
                         If ($LTSS.ProxyServerURL -ne "http://$($Script:LTProxy.ProxyServerURL)") {
                             Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: http://$($Script:LTProxy.ProxyServerURL)"
@@ -2531,13 +2531,13 @@ Param(
                         }
                     }
                 }#End If
-                if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
+                if (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
                     If ($(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyUsername) {
                         Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyUsername)"
                         $LTServiceSettingsChanged=$True
                     }
                 }#End If
-                If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
+                If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
                     If ($(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyPassword) {
                         Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyPassword)"
                         $LTServiceSettingsChanged=$True
@@ -2603,9 +2603,9 @@ Function Get-LTProxy{
     $Null=Get-LTServiceKeys
     Try {
         $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False
-        If (($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
+        If (($LTSI) -ne $Null -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
             $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
-            If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($LTSS.ProxyServerURL -Match 'https?://.+')) {
+            If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($LTSS.ProxyServerURL -Match 'https?://.+')) {
                 Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS.ProxyServerURL)"
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name Enabled -Value $True
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyServerURL -Value "$($LTSS.ProxyServerURL)"
@@ -2614,14 +2614,14 @@ Function Get-LTProxy{
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name Enabled -Value $False
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyServerURL -Value ''
             }#End If
-            if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
+            if (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
                 Write-Debug "Setting ProxyUsername to $($CustomProxyObject.ProxyUsername)"
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyUsername -Value "$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
             } Else {
                 Write-Debug "Setting ProxyUsername to "
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyUsername -Value ''
             }#End If
-            If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
+            If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
                 Write-Debug "Setting ProxyPassword to $($CustomProxyObject.ProxyPassword)"
                 Add-Member -InputObject $CustomProxyObject -MemberType NoteProperty -Name ProxyPassword -Value "$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
             } Else {
