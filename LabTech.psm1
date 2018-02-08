@@ -272,7 +272,7 @@ Function Stop-LTService{
         Write-Verbose "Stopping Labtech Services"
         If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
             Try{
-                ('LTService','LTSvcMon') | Foreach-Object {sc.exe stop "$($_)" 2>''} 
+                ('LTService','LTSvcMon') | Foreach-Object {$Null=sc.exe stop "$($_)" 2>''} 
                 $timeout = new-timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
                 Write-Host -NoNewline "Waiting for Services to Stop." 
@@ -363,27 +363,26 @@ Function Start-LTService{
                 foreach ($proc in $processes){
                     If ($PSCmdlet.ShouldProcess("$proc", "Terminate Process")) {
                         Write-Output "Process ID:$proc is using port $Port. Killing process."
-                        try{Stop-Process -ID $proc -Force -Verbose -EA Stop}
-                        catch {
+                        Try{Stop-Process -ID $proc -Force -Verbose -EA Stop}
+                        Catch {
                             Write-Warning "There was an issue killing the following process: $proc"
                             Write-Warning "This generally means that a 'protected application' is using this port."
                             $newPort = [int]$port + 1
                             if($newPort > 42009) {$newPort = 42000}
                             Write-Warning "Setting tray port to $newPort."
                             New-ItemProperty -Path "HKLM:\Software\Labtech\Service" -Name TrayPort -PropertyType String -Value $newPort -Force | Out-Null
-                        }
-                    }
-                }
-            }
+                        }#End Catch
+                    }#End If
+                }#End foreach
+            }#End If
             @('LTService','LTSvcMon') | ForEach-Object {
-                if (Get-Service $_ -EA 0) {
+                If (Get-Service $_ -EA 0) {
                     Set-Service $_ -StartupType Automatic -EA 0
-                    sc.exe start "$($_)" 2>''
-                    Write-Debug "Executed Start-Service for $($_)"
-                }
-            }
-
-    }#End Try
+                    $Null=sc.exe start "$($_)" 2>''
+                    Write-Debug "Executed Start Service for $($_)"
+                }#End If
+            }#End ForEach-Object
+        }#End Try
     
         Catch{
             Write-Error "ERROR: There was an error starting the LabTech services. $($Error[0])" -ErrorAction Stop
