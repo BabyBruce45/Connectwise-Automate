@@ -287,12 +287,12 @@ Function Stop-LTService{
                     Write-Verbose "Services did not stop. Terminating Processes after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
                 }
                 Get-Process | Where-Object {@('LTTray','LTSVC','LTSvcMon') -contains $_.ProcessName } | Stop-Process -Force -ErrorAction Stop
-            }
-        }#End Try
+            }#End Try
 
-        Catch{
-            Write-Error "ERROR: There was an error stopping the LabTech processes. $($Error[0])" -ErrorAction Stop
-        }#End Catch
+            Catch{
+                Write-Error "ERROR: There was an error stopping the LabTech processes. $($Error[0])" -ErrorAction Stop
+            }#End Catch
+        }#End If
     }#End Process
 
     End{
