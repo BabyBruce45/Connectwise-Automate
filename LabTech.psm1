@@ -269,10 +269,10 @@ Function Stop-LTService{
 
         Invoke-LTServiceCommand ('Kill VNC','Kill Trays')
 
-        Try{
-            Write-Verbose "Stopping Labtech Services"
-            If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
-                ('LTService','LTSvcMon') | Foreach-Object (sc.exe stop "$($_)" 2>'') 
+        Write-Verbose "Stopping Labtech Services"
+        If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
+            Try{
+                ('LTService','LTSvcMon') | Foreach-Object {sc.exe stop "$($_)" 2>''} 
                 $timeout = new-timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
                 Write-Host -NoNewline "Waiting for Services to Stop." 
@@ -2467,7 +2467,7 @@ Param(
                     if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains 'www.connectwise.com')) {
                         $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|ForEach-Object {$_.matches}|Select-Object -Expand value
                     }
-                    if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -eq $Null)) {
+                    if (($Script:LTProxy.ProxyServerURL -eq $Null) -or ($Script:LTProxy.ProxyServerURL -eq '')) {
                         $Script:LTProxy.ProxyServerURL=''
                         $Script:LTProxy.Enabled=$False
                     } else {
@@ -2527,13 +2527,13 @@ Param(
             If (($LTServiceSettingsReg) -ne $Null -and (Get-Item $LTServiceSettingsReg -ErrorAction SilentlyContinue)) {
                 $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
                 If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
-                    If ($LTSS.ProxyServerURL -match 'https?://.+') {
+                    If ($LTSS.ProxyServerURL -match 'https?://.*') {
                         If ($LTSS.ProxyServerURL -ne "http://$($Script:LTProxy.ProxyServerURL)") {
                             Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: http://$($Script:LTProxy.ProxyServerURL)"
                             $LTServiceSettingsChanged=$True
                         }
                     } Else {
-                        If (($LTSS.ProxyServerURL -ne $Script:LTProxy.ProxyServerURL) -and ($LTSS.ProxyServerURL -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
+                        If (($($LTSS.ProxyServerURL) -replace 'https?://','' -ne $Script:LTProxy.ProxyServerURL) -and ($($LTSS.ProxyServerURL) -replace 'https?://','' -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
                             Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: $($Script:LTProxy.ProxyServerURL)"
                             $LTServiceSettingsChanged=$True
                         }
