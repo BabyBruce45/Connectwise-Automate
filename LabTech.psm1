@@ -267,7 +267,7 @@ Function Stop-LTService{
 
     Process{
 
-        Invoke-LTServiceCommand ("Kill VNC","Kill Trays")
+        Invoke-LTServiceCommand ('Kill VNC','Kill Trays')
 
         Try{
             Write-Verbose "Stopping Labtech Services"
@@ -378,7 +378,7 @@ Function Start-LTService{
             @('LTService','LTSvcMon') | ForEach-Object {
                 if (Get-Service $_ -EA 0) {
                     Set-Service $_ -StartupType Automatic -EA 0
-                    Start-Service $_ -EA 0
+                    sc.exe start "$($_)" 2>''
                     Write-Debug "Executed Start-Service for $($_)"
                 }
             }
@@ -684,7 +684,7 @@ Function Uninstall-LTService{
                 @('LTService','LTSvcMon') | ForEach-Object {
                     if (Get-Service $_ -EA 0) {
 						Write-Debug "Removing Service: $($_)"
-						Start-Process -FilePath sc.exe -ArgumentList "delete $_" -Wait
+						Start-Process -Wait -FilePath sc.exe -ArgumentList "delete $_"
 					}
                 }
 
@@ -989,14 +989,19 @@ Function Install-LTService{
                 If (($Script:LTProxy.Enabled) -eq $True) {
                     If ( $PSCmdlet.ShouldProcess($Script:LTProxy.ProxyServerURL, "Configure Agent Proxy") ) {
                         Write-Verbose "Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
-                        $timeout = new-timespan -Minutes 3
-                        $sw = [diagnostics.stopwatch]::StartNew()
-                        Write-Verbose "Verifying Agent Settings have been committed to the registry." 
-                        Do {
-                            Start-Sleep 5
-                            $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False | Select-Object -Expand 'ServerAddress' -EA 0)
-                        } until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
-                        $sw.Stop()
+                        $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Running'} | Measure-Object | Select-Object -Expand Count
+                        if ($svcRun -gt 0) {
+                            $timeout = new-timespan -Minutes 2
+                            $sw = [diagnostics.stopwatch]::StartNew()
+                            Write-Host -NoNewline "Waiting for Service to Start." 
+                            Do {
+                                Write-Host -NoNewline '.'
+                                Start-Sleep 2
+                                $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Running'} | Measure-Object | Select-Object -Expand Count
+                            } until ($sw.elapsed -gt $timeout -or $svcRun -eq 0)
+                            Write-Host ""
+                            $sw.Stop()
+                        }
                         Set-LTProxy -ProxyServerURL $Script:LTProxy.ProxyServerURL -ProxyUsername $Script:LTProxy.ProxyUsername -ProxyPassword $Script:LTProxy.ProxyPassword
                     }
                 } else {
@@ -2089,12 +2094,15 @@ Function Invoke-LTServiceCommand {
     This function will allow you to execute all known commands against an agent.
 
 .NOTES
-    Version:        1.0
+    Version:        1.1
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  2/2/2018
     Purpose/Change: Initial script development
     Thanks:         Gavin Stone, for finding the command list
+
+    Update Date: 2/8/2018
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
 
 .LINK
     http://labtechconsulting.com
@@ -2152,9 +2160,9 @@ Function Invoke-LTServiceCommand {
                     default {"Invalid entry"}
                 }
                 If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command $($Cmd) ($($CommandID))")) {
-                    If (($CommandID)) {
+                    If (($CommandID) -ne $Null) {
                         Write-Debug "Sending service command $($Cmd) ($($CommandID)) to 'LTService'"
-                        $Service.ExecuteCommand($CommandID)
+                        $Null=sc.exe control LTService $CommandID 2>''
                     }
                 }
             } # End Try
