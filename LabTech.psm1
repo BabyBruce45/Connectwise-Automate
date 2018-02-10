@@ -2428,6 +2428,7 @@ Param(
 
     Begin {
         Clear-Variable LTServiceSettingsChanged,LTSS,LTServiceRestartNeeded,proxyURL,proxyUser,proxyPass,passwd,Svr -EA 0 #Clearing Variables for use
+        $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
 
     }#End Begin
 
@@ -2461,18 +2462,36 @@ Param(
                 Write-Verbose "DetectProxy selected. Attempting to Detect Proxy Settings."
                 If ( $PSCmdlet.ShouldProcess("LTProxy", "Detect") ) {
                     $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
-                    $Script:LTProxy.Enabled=$True
-                    $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy('http://www.connectwise.com').Authority
-                    if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains 'www.connectwise.com')) {
-                        $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|ForEach-Object {$_.matches}|Select-Object -Expand value
-                    }
-                    if (($Script:LTProxy.ProxyServerURL -eq $Null) -or ($Script:LTProxy.ProxyServerURL -eq '')) {
-                        $Script:LTProxy.ProxyServerURL=''
-                        $Script:LTProxy.Enabled=$False
-                    } else {
-                        $Script:LTProxy.Enabled=$True
-                        Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL)"
-                    }
+                    $Script:LTProxy.Enabled=$False
+                    $Script:LTProxy.ProxyServerURL=''
+                    $Servers = @(($LTSS|Select-Object -Expand 'ServerAddress' -EA 0).Split('|')|ForEach-Object {$_.Trim()})
+                    $Servers+='www.connectwise.com'
+                    Foreach ($Svr In $Servers) {
+                        If (-not ($Script:LTProxy.Enabled)) {
+                            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                                $Svr = $Svr -replace 'https?://',''
+                                Try{
+                                    $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy("http://$($Svr)").Authority
+                                } catch {}
+                                If (($Script:LTProxy.ProxyServerURL -ne $Null) -and ($Script:LTProxy.ProxyServerURL -ne '') -and ($Script:LTProxy.ProxyServerURL -notcontains "$($Svr)")) {
+                                    Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL) on server $($Svr)"
+                                    $Script:LTProxy.Enabled=$True
+                                }#End If
+                            }#End If
+                        }#End If
+                    }#End Foreach
+                    If (-not ($Script:LTProxy.Enabled)) {
+                        if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains '$Svr')) {
+                            $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|ForEach-Object {$_.matches}|Select-Object -Expand value
+                        }
+                        if (($Script:LTProxy.ProxyServerURL -eq $Null) -or ($Script:LTProxy.ProxyServerURL -eq '')) {
+                            $Script:LTProxy.ProxyServerURL=''
+                            $Script:LTProxy.Enabled=$False
+                        } else {
+                            $Script:LTProxy.Enabled=$True
+                            Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL)"
+                        }
+                    }#End If
                     $Script:LTProxy.ProxyUsername=''
                     $Script:LTProxy.ProxyPassword=''
                     $Script:LTServiceNetWebClient.Proxy=$Script:LTWebProxy
@@ -2523,30 +2542,29 @@ Param(
     End{
         If ($?){
             $LTServiceSettingsChanged=$False
-            $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
             If (($LTSS) -ne $Null) {
                 If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
-                    If ($LTSS.ProxyServerURL -match 'https?://.*') {
-                        If ($LTSS.ProxyServerURL -ne "http://$($Script:LTProxy.ProxyServerURL)") {
-                            Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: http://$($Script:LTProxy.ProxyServerURL)"
+                    If ($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -match 'https?://.*') {
+                        If ($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -ne "http://$($Script:LTProxy.ProxyServerURL)") {
+                            Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS|Select-object -Expand ProxyServerURL -EA 0) New Value: http://$($Script:LTProxy.ProxyServerURL)"
                             $LTServiceSettingsChanged=$True
                         }
                     } Else {
-                        If (($($LTSS.ProxyServerURL) -replace 'https?://','' -ne $Script:LTProxy.ProxyServerURL) -and ($($LTSS.ProxyServerURL) -replace 'https?://','' -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
-                            Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS.ProxyServerURL) New Value: $($Script:LTProxy.ProxyServerURL)"
+                        If (($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -ne $Script:LTProxy.ProxyServerURL) -and ($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -ne '' -or $Script:LTProxy.ProxyServerURL -ne '')) {
+                            Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS|Select-object -Expand ProxyServerURL -EA 0) New Value: $($Script:LTProxy.ProxyServerURL)"
                             $LTServiceSettingsChanged=$True
                         }
                     }
                 }#End If
-                if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
-                    If ($(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyUsername) {
-                        Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyUsername)"
+                if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS|Select-object -Expand ProxyUsername -EA 0)) {
+                    If ($(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyUsername) {
+                        Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyUsername)"
                         $LTServiceSettingsChanged=$True
                     }
                 }#End If
-                If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
-                    If ($(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyPassword) {
-                        Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyPassword)"
+                If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS|Select-object -Expand ProxyPassword -EA 0)) {
+                    If ($(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyPassword) {
+                        Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyPassword)"
                         $LTServiceSettingsChanged=$True
                     }
                 }#End If
@@ -2611,28 +2629,30 @@ Function Get-LTProxy{
         $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False
         If (($LTSI) -ne $Null -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
             $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
-            If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($LTSS.ProxyServerURL -Match 'https?://.+')) {
-                Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS.ProxyServerURL)"
-                $Script:LTProxy.Enabled=$True
-                $Script:LTProxy.ProxyServerURL="$($LTSS.ProxyServerURL)"
-            } Else {
-                Write-Debug "Setting ProxyServerURL to "
-                $Script:LTProxy.Enabled=$False
-                $Script:LTProxy.ProxyServerURL=''
-            }#End If
-            if (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS.ProxyUsername)) {
-                $Script:LTProxy.ProxyUsername="$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyUsername)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
-                Write-Debug "Setting ProxyUsername to $($Script:LTProxy.ProxyUsername)"
-            } Else {
-                Write-Debug "Setting ProxyUsername to "
-                $Script:LTProxy.ProxyUsername=''
-            }#End If
-            If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS.ProxyPassword)) {
-                $Script:LTProxy.ProxyPassword="$(ConvertFrom-LTSecurity -InputString "$($LTSS.ProxyPassword)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
-                Write-Debug "Setting ProxyPassword to $($Script:LTProxy.ProxyPassword)"
-            } Else {
-                Write-Debug "Setting ProxyPassword to "
-                $Script:LTProxy.ProxyPassword=''
+            If (($LTSS) -ne $Null) {
+                If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -Match 'https?://.+')) {
+                    Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS|Select-object -Expand ProxyServerURL -EA 0)"
+                    $Script:LTProxy.Enabled=$True
+                    $Script:LTProxy.ProxyServerURL="$($LTSS|Select-object -Expand ProxyServerURL -EA 0)"
+                } Else {
+                    Write-Debug "Setting ProxyServerURL to "
+                    $Script:LTProxy.Enabled=$False
+                    $Script:LTProxy.ProxyServerURL=''
+                }#End If
+                if (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS|Select-object -Expand ProxyUsername -EA 0)) {
+                    $Script:LTProxy.ProxyUsername="$(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                    Write-Debug "Setting ProxyUsername to $($Script:LTProxy.ProxyUsername)"
+                } Else {
+                    Write-Debug "Setting ProxyUsername to "
+                    $Script:LTProxy.ProxyUsername=''
+                }#End If
+                If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS|Select-object -Expand ProxyPassword -EA 0)) {
+                    $Script:LTProxy.ProxyPassword="$(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                    Write-Debug "Setting ProxyPassword to $($Script:LTProxy.ProxyPassword)"
+                } Else {
+                    Write-Debug "Setting ProxyPassword to "
+                    $Script:LTProxy.ProxyPassword=''
+                }#End If
             }#End If
         } Else {
             Write-Verbose "No Server password or settings exist. No Proxy information will be available."
