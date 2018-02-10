@@ -157,7 +157,7 @@ Function Get-LTServiceSettings{
   Begin{
     Write-Verbose "Checking for registry keys."
     if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service\Settings') -eq $False){
-        Write-Error "ERROR: Unable to find LTSvc settings. Make sure the agent is installed." -ErrorAction Stop
+        Write-Error "ERROR: Unable to find LTSvc settings. Make sure the agent is installed." 
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
   }#End Begin
@@ -168,7 +168,7 @@ Function Get-LTServiceSettings{
     }#End Try
     
     Catch{
-      Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])" -ErrorAction Stop
+      Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])"
     }#End Catch
   }#End Process
   
@@ -988,16 +988,16 @@ Function Install-LTService{
                 If (($Script:LTProxy.Enabled) -eq $True) {
                     If ( $PSCmdlet.ShouldProcess($Script:LTProxy.ProxyServerURL, "Configure Agent Proxy") ) {
                         Write-Verbose "Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
-                        $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Running'} | Measure-Object | Select-Object -Expand Count
-                        if ($svcRun -gt 0) {
+                        $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -eq 'Running'} | Measure-Object | Select-Object -Expand Count
+                        if ($svcRun -ne 0) {
                             $timeout = new-timespan -Minutes 2
                             $sw = [diagnostics.stopwatch]::StartNew()
                             Write-Host -NoNewline "Waiting for Service to Start." 
                             Do {
                                 Write-Host -NoNewline '.'
                                 Start-Sleep 2
-                                $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -ne 'Running'} | Measure-Object | Select-Object -Expand Count
-                            } until ($sw.elapsed -gt $timeout -or $svcRun -eq 0)
+                                $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -eq 'Running'} | Measure-Object | Select-Object -Expand Count
+                            } until ($sw.elapsed -gt $timeout -or $svcRun -eq 1)
                             Write-Host ""
                             $sw.Stop()
                         }
@@ -2428,7 +2428,9 @@ Param(
 
     Begin {
         Clear-Variable LTServiceSettingsChanged,LTSS,LTServiceRestartNeeded,proxyURL,proxyUser,proxyPass,passwd,Svr -EA 0 #Clearing Variables for use
-        $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
+        try {
+            $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
+        } catch {}
 
     }#End Begin
 
@@ -2464,8 +2466,7 @@ Param(
                     $Script:LTWebProxy=[System.Net.WebRequest]::GetSystemWebProxy()
                     $Script:LTProxy.Enabled=$False
                     $Script:LTProxy.ProxyServerURL=''
-                    $Servers = @(($LTSS|Select-Object -Expand 'ServerAddress' -EA 0).Split('|')|ForEach-Object {$_.Trim()})
-                    $Servers+='www.connectwise.com'
+                    $Servers = @($("$($LTSS|Select-Object -Expand 'ServerAddress' -EA 0)|www.connectwise.com").Split('|')|ForEach-Object {$_.Trim()})
                     Foreach ($Svr In $Servers) {
                         If (-not ($Script:LTProxy.Enabled)) {
                             If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
@@ -2568,17 +2569,25 @@ Param(
                         $LTServiceSettingsChanged=$True
                     }
                 }#End If
-                If ($LTServiceSettingsChanged -eq $True) {
-                    If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue|Where-Object {$_.Status -match 'Running'})) { $LTServiceRestartNeeded=$True; try {Stop-LTService -EA 0 -WA 0} catch {} }
-                    Write-Verbose "Updating LabTech\Service\Settings Proxy Configuration."
-                    If ( $PSCmdlet.ShouldProcess("LTService Registry", "Update") ) {
-                        $Svr=$($Script:LTProxy.ProxyServerURL); If (($Svr -ne '') -and ($Svr -notmatch 'https?://')) {$Svr = "http://$($Svr)"}
-                        @{"ProxyServerURL"=$Svr;
-                        "ProxyUserName"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTServiceKeys.PasswordString)")";
-                        "ProxyPassword"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"}.GetEnumerator() | Foreach-Object { Set-ItemProperty -Path $LTServiceSettingsReg -Name $($_.Name) -Value $($_.Value) -EA 0 }
-                    }#End If
-                    If ($LTServiceRestartNeeded -eq $True) { try {Start-LTService -EA 0 -WA 0} catch {} }
+            } else {
+                $svcRun = ('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -eq 'Running'} | Measure-Object | Select-Object -Expand Count
+                if (($svcRun -gt 0) -and ($($Script:LTProxy.ProxyServerURL) -match '.+')) {
+                    $LTServiceSettingsChanged=$True
                 }#End If
+            }#End If
+            If ($LTServiceSettingsChanged -eq $True) {
+                If ((Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue|Where-Object {$_.Status -match 'Running'})) { $LTServiceRestartNeeded=$True; try {Stop-LTService -EA 0 -WA 0} catch {} }
+                Write-Verbose "Updating LabTech\Service\Settings Proxy Configuration."
+                If ( $PSCmdlet.ShouldProcess("LTService Registry", "Update") ) {
+                    $Svr=$($Script:LTProxy.ProxyServerURL); If (($Svr -ne '') -and ($Svr -notmatch 'https?://')) {$Svr = "http://$($Svr)"}
+                    @{"ProxyServerURL"=$Svr;
+                    "ProxyUserName"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyUserName)" -Key "$($Script:LTServiceKeys.PasswordString)")";
+                    "ProxyPassword"="$(ConvertTo-LTSecurity -InputString "$($Script:LTProxy.ProxyPassword)" -Key "$($Script:LTServiceKeys.PasswordString)")"}.GetEnumerator() | Foreach-Object { 
+                        Write-Debug "Setting Registry value for $($_.Name) to `"$($_.Value)`""
+                        Set-ItemProperty -Path 'HKLM:Software\LabTech\Service\Settings' -Name $($_.Name) -Value $($_.Value) -EA 0
+                    }#End Foreach-Object
+                }#End If
+                If ($LTServiceRestartNeeded -eq $True) { try {Start-LTService -EA 0 -WA 0} catch {} }
             }#End If
         }#End If
         Else {$Error[0]}
