@@ -2158,11 +2158,11 @@ Function Invoke-LTServiceCommand {
                     'Start App Care Daytime Patching' {$CommandID = 145}
                     default {"Invalid entry"}
                 }
-                If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command $($Cmd) ($($CommandID))")) {
+                If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command '$($Cmd)' ($($CommandID))")) {
                     If (($CommandID) -ne $Null) {
-                        Write-Debug "Sending service command $($Cmd) ($($CommandID)) to 'LTService'"
+                        Write-Debug "Sending service command '$($Cmd)' ($($CommandID)) to 'LTService'"
                         $Null=sc.exe control LTService $CommandID 2>''
-                        Write-Output "Sent Command $($Cmd) to LTService"
+                        Write-Output "Sent Command '$($Cmd)' to 'LTService'"
                     }
                 }
             } # End Try
