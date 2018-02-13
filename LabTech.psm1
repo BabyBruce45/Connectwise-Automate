@@ -267,7 +267,7 @@ Function Stop-LTService{
 
     Process{
 
-        Invoke-LTServiceCommand ('Kill VNC','Kill Trays')
+        $Null=Invoke-LTServiceCommand ('Kill VNC','Kill Trays') -EA 0
 
         Write-Verbose "Stopping Labtech Services"
         If ($PSCmdlet.ShouldProcess("LTService and LTSvcMon", "Stop-Service")) {
@@ -407,7 +407,7 @@ Function Start-LTService{
                     $sw.Stop()
                 }
                 if ($svcRun -eq 0) {
-                    Invoke-LTServiceCommand 'Send Status'
+                    $Null=Invoke-LTServiceCommand 'Send Status' -EA 0
                     Write-Output "Services Started successfully."
                 } Else {
                     Write-Output "Service Start was issued but LTService has not reached Running state."
@@ -2162,6 +2162,7 @@ Function Invoke-LTServiceCommand {
                     If (($CommandID) -ne $Null) {
                         Write-Debug "Sending service command $($Cmd) ($($CommandID)) to 'LTService'"
                         $Null=sc.exe control LTService $CommandID 2>''
+                        Write-Output "Sent Command $($Cmd) to LTService"
                     }
                 }
             } # End Try
