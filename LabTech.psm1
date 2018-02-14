@@ -799,8 +799,11 @@ Function Install-LTService{
     Update Date: 9/7/2017
     Purpose/Change: Support for ShouldProcess to enable -Confirm and -WhatIf.
     
-    Update Date: 1/26/2017
+    Update Date: 1/26/2018
     Purpose/Change: Added support for Proxy Server for Download and Installation steps.
+
+    Update Date: 2/13/2018
+    Purpose/Change: Added -TrayPort parameter.
 
 .LINK
     http://labtechconsulting.com
@@ -814,6 +817,8 @@ Function Install-LTService{
         [string]$ServerPassword,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [int]$LocationID,
+        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [int]$TrayPort,
         [string]$Rename = $null,
         [switch]$Hide = $False,
         [switch]$Force = $False
@@ -885,9 +890,6 @@ Function Install-LTService{
                 Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
             }
         }
-        if (-not ($LocationID)){
-            $LocationID = "1"
-        }
 
         $logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
         $logfile = "LTAgentInstall"
@@ -903,6 +905,12 @@ Function Install-LTService{
     }#End Begin
   
     Process{
+        if (-not ($LocationID)){
+            $LocationID = "1"
+        }
+        if (-not ($TrayPort) -or -not ($TrayPort -ge 1 -and $TrayPort -le 65535)){
+            $TrayPort = "42000"
+        }
         Foreach ($Svr in $Server) {
             if (-not ($GoodServer)) {
                 if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
@@ -977,8 +985,25 @@ Function Install-LTService{
                 }
             }
 
+            $GoodTrayPort=$Null;
+            $TestTrayPort=$TrayPort;
+            For ($i=0; $i -le 10; $i++) {
+                If (-not ($GoodTrayPort)) {
+                    If (-not (Test-LTPorts -TrayPort $TestTrayPort -Quiet)){
+                        $TestTrayPort++;
+                        If ($TestTrayPort -gt 42009) {$TestTrayPort=42000}
+                    } Else {
+                        $GoodTrayPort=$TestTrayPort
+                    }#End If
+                }#End If
+            }#End For
+            If ($GoodTrayPort -and $GoodTrayPort -ne $TrayPort) {
+                Write-Verbose "TrayPort $($TrayPort) is in use. Changing TrayPort to $($GoodTrayPort)"
+                $TrayPort=$GoodTrayPort
+            }
+
             Write-Output "Starting Install."
-            $iarg = "/i $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID /qn /l $logpath\$logfile.log"
+            $iarg = "/i $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID SERVICEPORT=$TrayPort /qn /l $logpath\$logfile.log"
 
             Try{
                 Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
@@ -1560,10 +1585,13 @@ Function Test-LTPorts{
 
     Update Date: 8/24/2017
     Purpose/Change: Update to use Clear-Variable.
-    
+
     Update Date: 8/29/2017
     Purpose/Change: Added Server Address Format Check
-    
+
+    Update Date: 2/13/2018
+    Purpose/Change: Added -TrayPort parameter.
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -1571,6 +1599,8 @@ Function Test-LTPorts{
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true, ValueFromPipeline=$True)]
         [string[]]$Server,
+        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [int]$TrayPort,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [switch]$Quiet
     )
@@ -1615,34 +1645,41 @@ Function Test-LTPorts{
 
         Clear-Variable CleanSvr,svr,proc,processes,port,netstat,line -EA 0 #Clearing Variables for use
 
-        if (-not ($Quiet)){
-            #Learn LTTrayPort if available.
-            $Port = (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand TrayPort -EA 0)
-            if (-not ($Port) -or $Port -notmatch '^\d+$') {$Port=42000}
-            [array]$processes = @()
-            #Get all processes that are using LTTrayPort (Default 42000)
-            $netstat = netstat.exe -a -o -n | Select-String $Port -EA 0
-            foreach ($line in $netstat) {
-                $processes += ($line -split '  {3,}')[-1]
-            }
-            $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-            if ($processes) {
-                foreach ($proc in $processes) {
-                    if ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
-                        Write-Output "LTSvc is using port $Port"
-                    } else {
-                        Write-Output "Error: $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0) is using port $Port"
-                    }
-                }
-            }
-        }    
     }#End Begin
   
     Process{
-        if (-not ($Server)){
+        if (-not ($Server) -and -not ($TrayPort)){
             Write-Verbose 'No Server Input - Checking for names.'
-            $Server = Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand 'Server'
+            $Server = Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand 'Server' -EA 0
         }
+
+        if (-not ($Quiet) -or (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
+            #Learn LTTrayPort if available.
+            if (-not ($TrayPort) -or -not (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
+                $TrayPort = (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand TrayPort -EA 0)
+            }
+            if (-not ($TrayPort) -or $TrayPort -notmatch '^\d+$') {$TrayPort=42000}
+
+            [array]$processes = @()
+            #Get all processes that are using LTTrayPort (Default 42000)
+            $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($TrayPort).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
+            foreach ($line in $netstat){
+                $processes += ($line -split '  {3,}')[-1]
+            }
+            $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
+            if (($processes)) {
+                if (-not ($Quiet)){
+                    foreach ($proc in $processes) {
+                        if ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
+                            Write-Output "LTSvc is using port $TrayPort"
+                        } else {
+                            Write-Output "Error: $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0) is using port $TrayPort"
+                        }#End If
+                    }#End Foreach
+                } Else {return $False}#End If
+            } Elseif (($Quiet) -eq $True){return $True}#End If
+        }#End If
+
         foreach ($svr in $Server) {
                 if ($Quiet){
                     Test-Connection $Svr -Quiet
