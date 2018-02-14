@@ -1671,9 +1671,9 @@ Function Test-LTPorts{
                 If (-not ($Quiet)){
                     Foreach ($proc In $processes) {
                         If ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
-                            Write-Output "LTSvc is using port $TrayPort."
+                            Write-Output "TrayPort Port $TrayPort is being used by LTSvc."
                         } Else {
-                            Write-Output "Error: $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0) is using port $TrayPort."
+                            Write-Output "Error: TrayPort Port $TrayPort is being used by $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0)."
                         }#End If
                     }#End Foreach
                 } Else {return $False}#End If
