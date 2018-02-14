@@ -1654,8 +1654,8 @@ Function Test-LTPorts{
         }
 
         if (-not ($Quiet) -or (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
-            #Learn LTTrayPort if available.
             if (-not ($TrayPort) -or -not (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
+                #Learn LTTrayPort if available.
                 $TrayPort = (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand TrayPort -EA 0)
             }
             if (-not ($TrayPort) -or $TrayPort -notmatch '^\d+$') {$TrayPort=42000}
@@ -1663,58 +1663,61 @@ Function Test-LTPorts{
             [array]$processes = @()
             #Get all processes that are using LTTrayPort (Default 42000)
             $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($TrayPort).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
-            foreach ($line in $netstat){
+            Foreach ($line In $netstat){
                 $processes += ($line -split '  {3,}')[-1]
             }
             $processes = $processes | Where-Object {$_ -gt 0 -and $_ -match '^\d+$'}| Sort-Object | Get-Unique
-            if (($processes)) {
-                if (-not ($Quiet)){
-                    foreach ($proc in $processes) {
-                        if ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
-                            Write-Output "LTSvc is using port $TrayPort"
-                        } else {
-                            Write-Output "Error: $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0) is using port $TrayPort"
+            If (($processes)) {
+                If (-not ($Quiet)){
+                    Foreach ($proc In $processes) {
+                        If ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
+                            Write-Output "LTSvc is using port $TrayPort."
+                        } Else {
+                            Write-Output "Error: $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0) is using port $TrayPort."
                         }#End If
                     }#End Foreach
                 } Else {return $False}#End If
-            } Elseif (($Quiet) -eq $True){return $True}#End If
+            } ElseIf (($Quiet) -eq $True){
+                return $True
+            } Else {
+                Write-Output "TrayPort Port $TrayPort is available."
+            }#End If
         }#End If
 
         foreach ($svr in $Server) {
-                if ($Quiet){
-                    Test-Connection $Svr -Quiet
-                    return
-                }
+            if ($Quiet){
+                Test-Connection $Svr -Quiet
+                return
+            }
 
-                if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
-                    Try{
-                        $CleanSvr = ($Svr -replace 'https?://',''|ForEach-Object {$_.Trim()})
-                        Write-Output "Testing connectivity to required TCP ports"
-                        TestPort -ComputerName $CleanSvr -Port 70
-                        TestPort -ComputerName $CleanSvr -Port 80
-                        TestPort -ComputerName $CleanSvr -Port 443
-                        TestPort -ComputerName mediator.labtechsoftware.com -Port 8002
+            if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                Try{
+                    $CleanSvr = ($Svr -replace 'https?://',''|ForEach-Object {$_.Trim()})
+                    Write-Output "Testing connectivity to required TCP ports:"
+                    TestPort -ComputerName $CleanSvr -Port 70
+                    TestPort -ComputerName $CleanSvr -Port 80
+                    TestPort -ComputerName $CleanSvr -Port 443
+                    TestPort -ComputerName mediator.labtechsoftware.com -Port 8002
 
-                    }#End Try
+                }#End Try
 
-                    Catch{
-                      Write-Error "ERROR: There was an error testing the ports. $($Error[0])" -ErrorAction Stop
-                    }#End Catch
-                } else {
-                    Write-Warning "Server address $($Svr) is not a valid address or is not formatted correctly. Example: https://lt.domain.com"
-                }#End If
-                
-            }#End Foreach
-      }#End Process
-  
-      End{
+                Catch{
+                    Write-Error "ERROR: There was an error testing the ports. $($Error[0])" -ErrorAction Stop
+                }#End Catch
+            } else {
+                Write-Warning "Server address $($Svr) is not a valid address or is not formatted correctly. Example: https://lt.domain.com"
+            }#End If
+        }#End Foreach
+    }#End Process
+
+    End{
         If ($?){
             if (-not ($Quiet)){
-                Write-Output "Finished"
-            }          
+                Write-Output "Test-LTPorts Finished"
+            }
         }
         else{$Error[0]}
-      }#End End
+    }#End End
 
 }#End Function Test-LTPorts
 #endregion Test-LTPorts
