@@ -761,13 +761,16 @@ Function Install-LTService{
     This is the LocationID of the location that the agent will be put into.
     (Get-LTServiceInfo).LocationID
 
+.PARAMETER TrayPort
+    This is the port LTSvc.exe listens on for communication with LTTray processess.
+
 .PARAMETER Rename
     This will call Rename-LTAddRemove after the install.
 
 .PARAMETER Hide
     This will call Hide-LTAddRemove after the install.
 
-.PATAMETER Force
+.PARAMETER Force
     This will disable some of the error checking on the install process.
 
 .EXAMPLE
@@ -1554,21 +1557,26 @@ Function Test-LTPorts{
     This function will attempt to connect to all required TCP ports.
 
 .DESCRIPTION
-    The function will make sure that LTTray is using UDP 42000.
-    It will then test all the required TCP ports.
+    The function will confirm the LTTray port is available locally.
+    It will then test required TCP ports to the Server.
 
 .PARAMETER Server
     This is the URL to your LabTech server. 
     Example: https://lt.domain.com
-    This is used to download the installation and removal utilities.
-    If no server is provided the uninstaller will use Get-LTServiceInfo to get the server address.
-    If it is unable to find LT currently installed it will try Get-LTServiceInfoBackup
+    If no server is provided the function will use Get-LTServiceInfo to 
+    get the server address. If it is unable to find LT currently installed 
+    it will try calling Get-LTServiceInfoBackup.
+
+.PARAMETER TrayPort
+    This is the port LTSvc.exe listens on for communication with LTTray.
+    It will be checked to verify it is available. If not provided the 
+    default port will be used (42000).
 
 .PARAMETER Quiet
     This will return a boolean for connectivity status to the Server
 
 .NOTES
-    Version:        1.5
+    Version:        1.6
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1648,17 +1656,21 @@ Function Test-LTPorts{
     }#End Begin
   
     Process{
-        if (-not ($Server) -and (-not ($TrayPort) -or -not ($Quiet))){
+        If (-not ($Server) -and (-not ($TrayPort) -or -not ($Quiet))){
             Write-Verbose 'No Server Input - Checking for names.'
             $Server = Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand 'Server' -EA 0
-        }
+            If (-not ($Server)){
+                Write-Verbose 'No Server found in installed Service Info. Checking for Service Backup.'
+                $Server = Get-LTServiceInfoBackup -EA 0 -Verbose:$False|Select-Object -Expand 'Server' -EA 0
+            }#End If
+        }#End If
 
-        if (-not ($Quiet) -or (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
-            if (-not ($TrayPort) -or -not (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
+        If (-not ($Quiet) -or (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
+            If (-not ($TrayPort) -or -not (($TrayPort) -ge 1 -and ($TrayPort) -le 65530)){
                 #Learn LTTrayPort if available.
                 $TrayPort = (Get-LTServiceInfo -EA 0 -Verbose:$False|Select-Object -Expand TrayPort -EA 0)
             }
-            if (-not ($TrayPort) -or $TrayPort -notmatch '^\d+$') {$TrayPort=42000}
+            If (-not ($TrayPort) -or $TrayPort -notmatch '^\d+$') {$TrayPort=42000}
 
             [array]$processes = @()
             #Get all processes that are using LTTrayPort (Default 42000)
