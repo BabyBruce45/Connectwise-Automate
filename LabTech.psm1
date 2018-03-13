@@ -1488,7 +1488,7 @@ Function Hide-LTAddRemove{
                         $RegEntriesFound+=1
                         If ($PSCmdlet.ShouldProcess("$($RegRoot)", "Set Registry Values to Hide $($RegKey.GetValue('DisplayName'))")){
                             $RegEntriesChanged+=1
-                            @('NoModify','NoRemove','NoRepair') | ForEach-Object {
+                            @('SystemComponent') | ForEach-Object {
                                 If (($RegKey.GetValue("$($_)")) -ne 1) {
                                     Write-Verbose "Setting $($RegRoot)\$($_)=1"
                                     Set-ItemProperty $RegRoot -Name "$($_)" -Value 1 -Type DWord -WhatIf:$False -Confirm:$False -Verbose:$False
@@ -1594,7 +1594,7 @@ Function Show-LTAddRemove{
                         $RegEntriesFound+=1
                         If ($PSCmdlet.ShouldProcess("$($RegRoot)", "Set Registry Values to Show $($RegKey.GetValue('DisplayName'))")){
                             $RegEntriesChanged+=1
-                            @('NoRemove','NoRepair') | ForEach-Object {
+                            @('SystemComponent') | ForEach-Object {
                                 If (($RegKey.GetValue("$($_)")) -eq 1) {
                                     Write-Verbose "Setting $($RegRoot)\$($_)=0"
                                     Set-ItemProperty $RegRoot -Name "$($_)" -Value 0 -Type DWord -WhatIf:$False -Confirm:$False -Verbose:$False
