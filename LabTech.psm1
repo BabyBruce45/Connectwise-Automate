@@ -280,7 +280,7 @@ Function Stop-LTService{
             Write-Verbose "Stopping Labtech Services"
             Try{
                 ('LTService','LTSvcMon') | Foreach-Object {
-                    $Null=Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "stop ""$($_)"""
+                    $Null=Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "stop ""$($_)""" -EA 0
                 } 
                 $timeout = new-timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
@@ -388,7 +388,7 @@ Function Start-LTService{
                 @('LTService','LTSvcMon') | ForEach-Object {
                     If (Get-Service $_ -EA 0) {
                         Set-Service $_ -StartupType Automatic -EA 0 -Confirm:$False -WhatIf:$False
-                        $Null=Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "start ""$($_)"""
+                        $Null=Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "start ""$($_)""" -EA 0
                         $startedSvcCount+=1
                         Write-Debug "Executed Start Service for $($_)"
                     }#End If
@@ -698,7 +698,7 @@ Function Uninstall-LTService{
                 @('LTService','LTSvcMon') | ForEach-Object {
                     If (Get-Service $_ -EA 0) {
                         Write-Debug "Removing Service: $($_)"
-                        Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "delete ""$($_)"""
+                        Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "delete ""$($_)""" -EA 0
                     }#End If
                 }#End ForEach-Object
 
@@ -2263,7 +2263,7 @@ Function Invoke-LTServiceCommand {
                 If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command '$($Cmd)' ($($CommandID))")) {
                     If (($CommandID) -ne $Null) {
                         Write-Debug "Sending service command '$($Cmd)' ($($CommandID)) to 'LTService'"
-                        $Null=Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "control LTService $CommandID"
+                        $Null=Start-Process -Wait -NoNewWindow -FilePath sc.exe -ArgumentList "control LTService $CommandID" -EA 0
                         Write-Output "Sent Command '$($Cmd)' to 'LTService'"
                     }#End If
                 }#End If
