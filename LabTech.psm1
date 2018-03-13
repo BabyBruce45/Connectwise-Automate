@@ -1466,63 +1466,63 @@ Function Reset-LTService{
 #endregion Reset-LTService
 
 Function Hide-LTAddRemove{
-    #region [Hide-LTAddRemove]------------------------------------------------------
-    <#
-    .SYNOPSIS
-        This function hides the LabTech install from the Add/Remove Programs list.
+#region [Hide-LTAddRemove]------------------------------------------------------
+<#
+.SYNOPSIS
+    This function hides the LabTech install from the Add/Remove Programs list.
+
+.DESCRIPTION
+    This function will rename the DisplayName registry key to hide it from the Add/Remove Programs list.
+
+.NOTES
+    Version:        1.1
+    Author:         Chris Taylor
+    Website:        labtechconsulting.com
+    Creation Date:  3/14/2016
+    Purpose/Change: Initial script development
+
+    Update Date: 6/1/2017
+    Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
     
-    .DESCRIPTION
-        This function will rename the DisplayName registry key to hide it from the Add/Remove Programs list.
-    
-    .NOTES
-        Version:        1.1
-        Author:         Chris Taylor
-        Website:        labtechconsulting.com
-        Creation Date:  3/14/2016
-        Purpose/Change: Initial script development
-    
-        Update Date: 6/1/2017
-        Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
-        
-    .LINK
-        http://labtechconsulting.com
-    #>
-        [CmdletBinding(SupportsShouldProcess=$True)]
-        Param()
-    
-        Begin{
-            $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F','HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
-            foreach($RegRoot in $RegRoots){
-                if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue) {
-                    Write-Output "LabTech found in add/remove programs."
-                }
-                else {
-                    if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
-                        Write-Error "LabTech already hidden from add/remove programs." -ErrorAction Stop
-                    }    
-                }
+.LINK
+    http://labtechconsulting.com
+#>
+    [CmdletBinding(SupportsShouldProcess=$True)]
+    Param()
+
+    Begin{
+        $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F','HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
+        foreach($RegRoot in $RegRoots){
+            if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue) {
+                Write-Output "LabTech found in add/remove programs."
             }
-            
-        }#End Begin
-      
-        Process{
-            Try{
-                Rename-ItemProperty $RegRoot -Name ProductName -NewName HiddenProductName
-            }#End Try
-        
-            Catch{
-                Write-Error "There was an error renaming the registry key. $($Error[0])" -ErrorAction Stop
-            }#End Catch
-        }#End Process
-      
-        End{
-            if ($?){
-                Write-Output "LabTech is now hidden from Add/Remove Programs."
+            else {
+                if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
+                    Write-Error "LabTech already hidden from add/remove programs." -ErrorAction Stop
+                }    
             }
-            else {$Error[0]}
-        }#End End
-    }#End Function Hide-LTAddRemove
-    #endregion Hide-LTAddRemove
+        }
+        
+    }#End Begin
+    
+    Process{
+        Try{
+            Rename-ItemProperty $RegRoot -Name ProductName -NewName HiddenProductName
+        }#End Try
+    
+        Catch{
+            Write-Error "There was an error renaming the registry key. $($Error[0])" -ErrorAction Stop
+        }#End Catch
+    }#End Process
+    
+    End{
+        if ($?){
+            Write-Output "LabTech is now hidden from Add/Remove Programs."
+        }
+        else {$Error[0]}
+    }#End End
+}#End Function Hide-LTAddRemove
+#endregion Hide-LTAddRemove
 
 Function Show-LTAddRemove{
 #region [Show-LTAddRemove]------------------------------------------------------
