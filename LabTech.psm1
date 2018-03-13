@@ -34,18 +34,18 @@ if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Ve
 #Module Version
 $ModuleVersion = "1.4"
 
-if ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
+If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
     Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
-    if ($myInvocation.Line) {
+    If ($myInvocation.Line) {
         &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile $myInvocation.Line
-    } elseif ($myInvocation.InvocationName) {
-        &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile -file "$($myInvocation.InvocationName)" $args
-    } else {
+    } Elseif ($myInvocation.InvocationName) {
+        &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile -File "$($myInvocation.InvocationName)" $args
+    } Else {
         &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile $myInvocation.MyCommand
     }
     Write-Warning 'Exiting 64-bit session. Module will only remain loaded in native 64-bit PowerShell environment.'
-exit $lastexitcode
-}
+Exit $lastexitcode
+}#End If
 
 #Ignore SSL errors
 Add-Type -Debug:$False @"
@@ -1426,7 +1426,7 @@ Function Hide-LTAddRemove{
     This function will rename the DisplayName registry key to hide it from the Add/Remove Programs list.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1434,7 +1434,11 @@ Function Hide-LTAddRemove{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
-    
+
+    Update Date: 3/12/2018
+    Purpose/Change: Support for ShouldProcess. Added Registry Paths to be checked. 
+    Modified hiding method to be compatible with standard software controls.
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -1442,35 +1446,77 @@ Function Hide-LTAddRemove{
     Param()
 
     Begin{
-        $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F','HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
-        foreach($RegRoot in $RegRoots){
-            if (Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue) {
-                Write-Output "LabTech found in add/remove programs."
-            }
-            else {
-                if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
-                    Write-Error "LabTech already hidden from add/remove programs." -ErrorAction Stop
-                }    
-            }
-        }
-        
+        $RegRoots = ('HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+        'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC')
+        $PublisherRegRoots = ('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}')
+        $RegEntriesFound=0
+        $RegEntriesChanged=0
     }#End Begin
-  
+
     Process{
+
         Try{
-            Rename-ItemProperty $RegRoot -Name ProductName -NewName HiddenProductName
+            Foreach($RegRoot in $RegRoots){
+                If (Test-Path $RegRoot){
+                    If (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
+                        If (!(Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue)) {
+                            Write-Verbose "LabTech found with HiddenProductName value."
+                            Try{
+                                Rename-ItemProperty $RegRoot -Name HiddenProductName -NewName ProductName
+                            }#End Try
+                            Catch{
+                                Write-Error "There was an error renaming the registry value. $($Error[0])" -ErrorAction Stop
+                            }#End Catch
+                        } Else {
+                            Write-Verbose "LabTech found with unused HiddenProductName value."
+                            Try{
+                                Remove-ItemProperty $RegRoot -Name HiddenProductName -EA 0 -Confirm:$False -WhatIf:$False -Force
+                            }#End Try
+                            Catch{}#End Catch
+                        }#End If
+                    }#End If
+                }#End If
+            }#End Foreach
+
+            Foreach($RegRoot in $PublisherRegRoots){
+                If (Test-Path $RegRoot){
+                    $RegKey=Get-Item $RegRoot -ErrorAction SilentlyContinue
+                    If ($RegKey){
+                        $RegEntriesFound+=1
+                        If ($PSCmdlet.ShouldProcess("$($RegRoot)", "Set Registry Values to Hide $($RegKey.GetValue('DisplayName'))")){
+                            $RegEntriesChanged+=1
+                            @('NoModify','NoRemove','NoRepair') | ForEach-Object {
+                                If (($RegKey.GetValue("$($_)")) -ne 1) {
+                                    Write-Verbose "Setting $($RegRoot)\$($_)=1"
+                                    Set-ItemProperty $RegRoot -Name "$($_)" -Value 1 -Type DWord -WhatIf:$False -Confirm:$False -Verbose:$False
+                                }#End If
+                            }#End ForEach-Object
+                        }#End If
+                    }#End If
+                }#End If
+            }#End Foreach
         }#End Try
-    
+
         Catch{
-            Write-Error "There was an error renaming the registry key. $($Error[0])" -ErrorAction Stop
+            Write-Error "There was an error setting the registry values. $($Error[0])" -ErrorAction Stop
         }#End Catch
+
     }#End Process
-  
+
     End{
-        if ($?){
-            Write-Output "LabTech is now hidden from Add/Remove Programs."
+        If ($?){
+            If ($WhatIfPreference -ne $True) {
+                If ($RegEntriesFound -gt 0 -and $RegEntriesChanged -eq $RegEntriesFound) {
+                    Write-Output "LabTech is hidden from Add/Remove Programs."
+                } Else {
+                    Write-Warning "LabTech may not be hidden from Add/Remove Programs."
+                }#End If
+            }#End If
         }
-        else {$Error[0]}
+        Else {$Error[0]}
     }#End End
 }#End Function Hide-LTAddRemove
 #endregion Hide-LTAddRemove
@@ -1486,7 +1532,7 @@ Function Show-LTAddRemove{
     If there is not HiddenDisplayName key the function will import a new entry.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1494,7 +1540,11 @@ Function Show-LTAddRemove{
 
     Update Date: 6/1/2017
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
-    
+
+    Update Date: 3/12/2018
+    Purpose/Change: Support for ShouldProcess. Added Registry Paths to be checked. 
+    Modified hiding method to be compatible with standard software controls.
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -1502,50 +1552,77 @@ Function Show-LTAddRemove{
     Param()
 
     Begin{
-        $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
+        $RegRoots = ('HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+        'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC')
+        $PublisherRegRoots = ('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}')
+        $RegEntriesFound=0
+        $RegEntriesChanged=0
     }#End Begin
-  
-    Process{
-        Try{
-            foreach($RegRoot in $RegRoots){
 
-                if (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue){
-                    Rename-ItemProperty $RegRoot -Name HiddenProductName -NewName ProductName
-                }
-                else{
-                    $RegImport = @'
-[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC]
-"PackageCode"="8059C8AD908AB434A9F2225AF86355C2"
-"Language"=dword:00000409
-"Version"=dword:0b00016d
-"Assignment"=dword:00000001
-"AdvertiseFlags"=dword:00000184
-"ProductIcon"="C:\\WINDOWS\\Installer\\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}\\LabTeCh.ico"
-"InstanceType"=dword:00000000
-"AuthorizedLUAApp"=dword:00000000
-"DeploymentFlags"=dword:00000003
-"Clients"=hex(7):3a,00,00,00,00,00
-"ProductName"="LabTech® Software Remote Agent"
-'@
-                    $RegImport | Out-File "$env:TEMP\LT.reg" -Force
-                    Start-Process -Wait -FilePath reg -ArgumentList "import $($env:TEMP)\LT.reg"
-                    Remove-Item "$env:TEMP\LT.reg" -Force
-                    New-ItemProperty -Path "$RegRoot\SourceList" -Name LastUsedSource -Value "u;1;$((Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
-                    New-ItemProperty -Path "$RegRoot\SourceList\URL" -Name 1 -Value "$((Get-LTServiceInfo -EA 0 -Verbose:$False|Select-object -Expand 'Server Address' -EA 0).Split(';'))/Labtech/" -PropertyType ExpandString -Force | Out-Null
-                }
-            }
+    Process{
+
+        Try{
+            Foreach($RegRoot in $RegRoots){
+                If (Test-Path $RegRoot){
+                    If (Get-ItemProperty $RegRoot -Name HiddenProductName -ErrorAction SilentlyContinue) {
+                        If (!(Get-ItemProperty $RegRoot -Name ProductName -ErrorAction SilentlyContinue)) {
+                            Write-Verbose "LabTech found with HiddenProductName value."
+                            Try{
+                                Rename-ItemProperty $RegRoot -Name HiddenProductName -NewName ProductName
+                            }#End Try
+                            Catch{
+                                Write-Error "There was an error renaming the registry value. $($Error[0])" -ErrorAction Stop
+                            }#End Catch
+                        } Else {
+                            Write-Verbose "LabTech found with unused HiddenProductName value."
+                            Try{
+                                Remove-ItemProperty $RegRoot -Name HiddenProductName -EA 0 -Confirm:$False -WhatIf:$False -Force
+                            }#End Try
+                            Catch{}#End Catch
+                        }#End If
+                    }#End If
+                }#End If
+            }#End Foreach
+
+            Foreach($RegRoot in $PublisherRegRoots){
+                If (Test-Path $RegRoot){
+                    $RegKey=Get-Item $RegRoot -ErrorAction SilentlyContinue
+                    If ($RegKey){
+                        $RegEntriesFound+=1
+                        If ($PSCmdlet.ShouldProcess("$($RegRoot)", "Set Registry Values to Show $($RegKey.GetValue('DisplayName'))")){
+                            $RegEntriesChanged+=1
+                            @('NoRemove','NoRepair') | ForEach-Object {
+                                If (($RegKey.GetValue("$($_)")) -eq 1) {
+                                    Write-Verbose "Setting $($RegRoot)\$($_)=0"
+                                    Set-ItemProperty $RegRoot -Name "$($_)" -Value 0 -Type DWord -WhatIf:$False -Confirm:$False -Verbose:$False
+                                }#End If
+                            }#End ForEach-Object
+                        }#End If
+                    }#End If
+                }#End If
+            }#End Foreach
         }#End Try
-    
+
         Catch{
-            Write-Error "There was an error renaming the registry key. $($Error[0])" -ErrorAction Stop
+            Write-Error "There was an error setting the registry values. $($Error[0])" -ErrorAction Stop
         }#End Catch
+
     }#End Process
-  
+
     End{
-        if ($?) {
-            Write-Output "LabTech is now shown in Add/Remove Programs."
+        If ($?){
+            If ($WhatIfPreference -ne $True) {
+                If ($RegEntriesFound -gt 0 -and $RegEntriesChanged -eq $RegEntriesFound) {
+                    Write-Output "LabTech is visible from Add/Remove Programs."
+                } Else {
+                    Write-Warning "LabTech may not be visible from Add/Remove Programs."
+                }#End If
+            }#End If
         }
-        Else{$Error[0]}
+        Else {$Error[0]}
     }#End End
 }#End Function Show-LTAddRemove
 #endregion Show-LTAddRemove
