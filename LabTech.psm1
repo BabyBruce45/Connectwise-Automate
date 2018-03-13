@@ -1131,6 +1131,9 @@ Function Redo-LTService{
 .PARAMETER Rename
     This will call Rename-LTAddRemove to rename the install in Add/Remove Programs
 
+.PARAMETER Force
+    This will force operation on an agent detected as a probe.
+
 .EXAMPLE
     Redo-LTService 
     This will ReInstall the LabTech agent using the server address in the registry.
@@ -1361,8 +1364,8 @@ Function Reset-LTService{
 .PARAMETER MAC
     This will reset the MAC of the computer
 
-.PARAMETER MAC
-    This will reset the MAC of the computer
+.PARAMETER Force
+    This will force operation on an agent detected as a probe.
 
 .EXAMPLE
     Reset-LTService
