@@ -507,6 +507,7 @@ Function Uninstall-LTService{
     Purpose/Change: Added detection of "Probe" enabled agent. 
     Added support for -Force parameter to override probe detection.
     Updated support of -WhatIf parameter.
+    Added minimum size requirement for agent installer to detect and skip a bad file download.
 
 .LINK
     http://labtechconsulting.com
@@ -627,16 +628,21 @@ Function Uninstall-LTService{
                         $installerTest.ProtocolVersion = '1.0'
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
-                        if ($installerResult.StatusCode -ne 200) {
+                        If ($installerResult.StatusCode -ne 200) {
                             Write-Warning "Unable to download Agent_Install.msi from server $($Svr)."
                             Continue
                         }
-                        else{
+                        Else{
                             If ($PSCmdlet.ShouldProcess("$installer", "DownloadFile")) {
                                 Write-Debug "Downloading Agent_Install.msi from $installer"
                                 $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-                            }
-                        }
+                                If((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and  !((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
+                                    Write-Warning "Agent_Install.msi size is below normal. Removing suspected corrupt file."
+                                    Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                    Continue
+                                }#End If
+                            }#End If
+                        }#End If
 
                         #Using $SVer results gathered above.
                         if ([System.Version]$SVer -ge [System.Version]'110.374') {
@@ -716,7 +722,7 @@ Function Uninstall-LTService{
 
                 If ($PSCmdlet.ShouldProcess("msiexec.exe $($xarg)", "Execute MSI Uninstall")) {
                     If ((Test-Path "$($env:windir)\temp\LabTech\Installer\Agent_Install.msi")) {
-                        #Run MSI uninstaller for current installer
+                        #Run MSI uninstaller for current installation
                         Write-Verbose "Launching MSI Uninstall."
                         Write-Debug "Excuting Command ""msiexec.exe $($xarg)"""
                         Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
@@ -882,6 +888,7 @@ Function Install-LTService{
 
     Update Date: 3/13/2018
     Purpose/Change: Added -NoWait parameter.
+    Added minimum size requirement for agent installer to detect and skip a bad file download.
 
 .LINK
     http://labtechconsulting.com
@@ -1027,6 +1034,11 @@ Function Install-LTService{
                             If ( $PSCmdlet.ShouldProcess($installer, "DownloadFile") ) {
                                 Write-Debug "Downloading Agent_Install.msi from $installer"
                                 $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
+                                If((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and  !((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
+                                    Write-Warning "Agent_Install.msi size is below normal. Removing suspected corrupt file."
+                                    Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                    Continue
+                                }#End If
                             }#End If
 
                             If ($WhatIfPreference -eq $True) {
@@ -1126,7 +1138,7 @@ Function Install-LTService{
                 If (!($NoWait) -and $PSCmdlet.ShouldProcess("LTService","Monitor For Successful Agent Registration") ) {
                     $timeout = new-timespan -Minutes 3
                     $sw = [diagnostics.stopwatch]::StartNew()
-                        Write-Host -NoNewline "Waiting for agent to register." 
+                    Write-Host -NoNewline "Waiting for agent to register." 
                     Do {
                         Write-Host -NoNewline '.'
                         Start-Sleep 2
@@ -1152,7 +1164,6 @@ Function Install-LTService{
                         Write-Error "ERROR: LabTech installation completed but Agent failed to register within expected period." -ErrorAction Continue
                     } Else {
                         Write-Warning "WARNING: LabTech installation completed but Agent did not yet register."
-#                        Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. UnInstall Denied." -ErrorAction Stop
                     }#End If
                 } Else {
                     If (($Error)) {
@@ -1319,7 +1330,7 @@ Function Redo-LTService{
             $PasswordArg = "-Password '$ServerPassword'"
         }
 
-        Write-Host "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
+        Write-Output "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
         Write-Verbose "Starting: Uninstall-LTService -Server $($ServerList -join ',')"
         Try{
             Uninstall-LTService -Server $serverlist -ErrorAction Stop -Force
@@ -1543,6 +1554,7 @@ Function Reset-LTService{
                 $timeout = New-Timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
                 $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
+                Write-Host -NoNewline "Waiting for agent to register." 
                 While (!($LTSI|Select-Object -Expand ID -EA 0) -or !($LTSI|Select-Object -Expand LocationID -EA 0) -or !($LTSI|Select-Object -Expand MAC -EA 0) -and $($sw.elapsed) -lt $timeout){
                     Write-Host -NoNewline '.'
                     Start-Sleep 2
