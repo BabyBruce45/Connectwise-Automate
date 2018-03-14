@@ -1446,6 +1446,7 @@ Function Hide-LTAddRemove{
     Param()
 
     Begin{
+        Write-Debug "Starting $($myInvocation.InvocationName)"
         $RegRoots = ('HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
         'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC')
         $PublisherRegRoots = ('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
@@ -1485,9 +1486,9 @@ Function Hide-LTAddRemove{
                 If (Test-Path $RegRoot){
                     $RegKey=Get-Item $RegRoot -ErrorAction SilentlyContinue
                     If ($RegKey){
-                        $RegEntriesFound+=1
+                        $RegEntriesFound++
                         If ($PSCmdlet.ShouldProcess("$($RegRoot)", "Set Registry Values to Hide $($RegKey.GetValue('DisplayName'))")){
-                            $RegEntriesChanged+=1
+                            $RegEntriesChanged++
                             @('SystemComponent') | ForEach-Object {
                                 If (($RegKey.GetValue("$($_)")) -ne 1) {
                                     Write-Verbose "Setting $($RegRoot)\$($_)=1"
@@ -1507,16 +1508,17 @@ Function Hide-LTAddRemove{
     }#End Process
 
     End{
-        If ($?){
-            If ($WhatIfPreference -ne $True) {
+        If ($WhatIfPreference -ne $True) {
+            If ($?){
                 If ($RegEntriesFound -gt 0 -and $RegEntriesChanged -eq $RegEntriesFound) {
                     Write-Output "LabTech is hidden from Add/Remove Programs."
                 } Else {
                     Write-Warning "LabTech may not be hidden from Add/Remove Programs."
                 }#End If
             }#End If
-        }
-        Else {$Error[0]}
+            Else {$Error[0]}
+        }#End If
+        Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Hide-LTAddRemove
 #endregion Hide-LTAddRemove
@@ -1552,6 +1554,7 @@ Function Show-LTAddRemove{
     Param()
 
     Begin{
+        Write-Debug "Starting $($myInvocation.InvocationName)"
         $RegRoots = ('HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
         'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC')
         $PublisherRegRoots = ('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
@@ -1591,9 +1594,9 @@ Function Show-LTAddRemove{
                 If (Test-Path $RegRoot){
                     $RegKey=Get-Item $RegRoot -ErrorAction SilentlyContinue
                     If ($RegKey){
-                        $RegEntriesFound+=1
+                        $RegEntriesFound++
                         If ($PSCmdlet.ShouldProcess("$($RegRoot)", "Set Registry Values to Show $($RegKey.GetValue('DisplayName'))")){
-                            $RegEntriesChanged+=1
+                            $RegEntriesChanged++
                             @('SystemComponent') | ForEach-Object {
                                 If (($RegKey.GetValue("$($_)")) -eq 1) {
                                     Write-Verbose "Setting $($RegRoot)\$($_)=0"
@@ -1613,16 +1616,17 @@ Function Show-LTAddRemove{
     }#End Process
 
     End{
-        If ($?){
-            If ($WhatIfPreference -ne $True) {
+        If ($WhatIfPreference -ne $True) {
+            If ($?){
                 If ($RegEntriesFound -gt 0 -and $RegEntriesChanged -eq $RegEntriesFound) {
                     Write-Output "LabTech is visible from Add/Remove Programs."
                 } Else {
                     Write-Warning "LabTech may not be visible from Add/Remove Programs."
                 }#End If
             }#End If
-        }
-        Else {$Error[0]}
+            Else {$Error[0]}
+        }#End If
+        Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Show-LTAddRemove
 #endregion Show-LTAddRemove
