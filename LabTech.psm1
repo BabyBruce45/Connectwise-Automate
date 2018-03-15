@@ -934,7 +934,7 @@ Function Install-LTService{
                     Write-Error "Services are already installed." -ErrorAction Stop
                 } Else {
                     Write-Warning "Services are already installed."
-                    Break
+                    Return
                 }#End If
             }#End If
 
