@@ -203,20 +203,24 @@ Function Restart-LTService{
     Purpose/Change: Updates for better overall compatibility, including better support for PowerShell V2
 
     Update Date: 3/13/2018
-    Purpose/Change: Added additional debugging output, support for ShouldProcess (-Confirn, -WhatIf)
+    Purpose/Change: Added additional debugging output, support for ShouldProcess (-Confirm, -WhatIf)
 
 .LINK
     http://labtechconsulting.com
 #> 
-  
-    [CmdletBinding(SupportsShouldProcess=$true)]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param()
-  
+
     Begin{
         Write-Debug "Starting $($myInvocation.InvocationName)"
-            if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
-        }
+        if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
+            If ($WhatIfPreference -ne $True) {
+                Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
+            } Else {
+                Write-Warning "Services NOT Found $($Error[0])"
+                Break
+            }#End If
+        }#End IF
     }#End Begin
 
     Process{
@@ -224,7 +228,7 @@ Function Restart-LTService{
             Stop-LTService
         }#End Try
         Catch{
-            Write-Error "ERROR: There was an error restarting the services. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: There was an error stopping the services. $($Error[0])" -ErrorAction Stop
         }#End Catch
 
         Try{
@@ -271,7 +275,7 @@ Function Stop-LTService{
 .LINK
     http://labtechconsulting.com
 #>   
-    [CmdletBinding(SupportsShouldProcess=$true)]
+    [CmdletBinding(SupportsShouldProcess=$True)]
     Param()
   
     Begin{
@@ -279,8 +283,13 @@ Function Stop-LTService{
         Write-Debug "Starting $($myInvocation.InvocationName)"
 
         if (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
-        }
+            If ($WhatIfPreference -ne $True) {
+                Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
+            } Else {
+                Write-Warning "Services NOT Found $($Error[0])"
+                Break
+            }#End If
+        }#End If
     }#End Begin
 
     Process{
@@ -361,16 +370,20 @@ Function Start-LTService{
     .LINK
     http://labtechconsulting.com
 #>
-    
     [CmdletBinding(SupportsShouldProcess=$True)]
     Param()   
     
     Begin{
         Write-Debug "Starting $($myInvocation.InvocationName)"
         If (-not (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
-        }
-        #Kill all processes that are using the tray port 
+            If ($WhatIfPreference -ne $True) {
+                Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
+            } Else {
+                Write-Warning "Services NOT Found $($Error[0])"
+                Break
+            }#End If
+        }#End If
+        #Identify processes that are using the tray port 
         [array]$processes = @()
         $Port = (Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand TrayPort -EA 0)
         if (-not ($Port)) {$Port = "42000"}
@@ -519,7 +532,8 @@ Function Uninstall-LTService{
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [switch]$Backup = $False,
         [switch]$Force
-    )   
+    )
+
     Begin{
         Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,LTSI,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
         Write-Debug "Starting $($myInvocation.InvocationName)"
@@ -589,7 +603,7 @@ Function Uninstall-LTService{
 
         $xarg = "/x `"$($env:windir)\temp\LabTech\Installer\Agent_Install.msi`" /qn"
     }#End Begin
-  
+
     Process{
         If (-not ($Server)){
             $Server = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand 'Server' -EA 0
@@ -904,7 +918,7 @@ Function Install-LTService{
         [int]$LocationID,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [int]$TrayPort,
-        [string]$Rename = $null,
+        [string]$Rename = $Null,
         [switch]$Hide = $False,
         [switch]$Force = $False,
         [switch]$NoWait = $False
@@ -916,11 +930,16 @@ Function Install-LTService{
 
         If (!($Force)) {
             If (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
-                Write-Error "LabTech is already installed." -ErrorAction Stop
-            }
+                If ($WhatIfPreference -ne $True) {
+                    Write-Error "Services are already installed." -ErrorAction Stop
+                } Else {
+                    Write-Warning "Services are already installed."
+                    Break
+                }#End If
+            }#End If
 
-            If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand Groups -EA 0) -match "S-1-5-32-544"))) {
-                Write-Error "Needs to be ran as Administrator" -ErrorAction Stop
+            If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
+                Throw "Needs to be ran as Administrator" 
             }
         }#End If
 
@@ -1282,7 +1301,12 @@ Function Redo-LTService{
             If ($Force -eq $True) {
                 Write-Output "Probe Agent Detected. Re-Install Forced."
             } Else {
-                Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
+                If ($WhatIfPreference -ne $True) {
+                    Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
+                } Else {
+                    Write-Warning "Probe Agent Detected. Re-Install Denied."
+                    Break
+                }#End If
             }#End If
         }#End If
         if (-not ($Settings)){
@@ -1392,7 +1416,6 @@ Function Get-LTError{
 .LINK
     http://labtechconsulting.com
 #> 
-
     [CmdletBinding()]
     Param()
 
@@ -1491,7 +1514,6 @@ Function Reset-LTService{
 .LINK
     http://labtechconsulting.com
 #> 
-
     [CmdletBinding(SupportsShouldProcess=$True)]
     Param(
         [switch]$ID,
@@ -1499,12 +1521,17 @@ Function Reset-LTService{
         [switch]$MAC,
         [switch]$Force,
         [switch]$NoWait
-    )   
-    
+    )
+
     Begin{
         Write-Debug "Starting $($myInvocation.InvocationName)"
         If (!(Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue)) {
-            Write-Error "ERROR: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
+            If ($WhatIfPreference -ne $True) {
+                Write-Error "ERROR: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
+            } Else {
+                Write-Warning "LabTech Services NOT Found"
+                Break
+            }#End If
         }#End If
         $Reg = 'HKLM:\Software\LabTech\Service'
         If (!($ID -or $LocationID -or $MAC)){
@@ -1514,17 +1541,22 @@ Function Reset-LTService{
         }#End If
 
         $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
-        If (($LTSI|Select-Object -Expand Probe -EA 0) -eq '1') {
+        If (($LTSI) -and ($LTSI|Select-Object -Expand Probe -EA 0) -eq '1') {
             If ($Force -eq $True) {
                 Write-Output "Probe Agent Detected. Reset Forced."
             } Else {
-                Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Reset Denied." -ErrorAction Stop
+                If ($WhatIfPreference -ne $True) {
+                    Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Reset Denied." -ErrorAction Stop
+                } Else {
+                    Write-Warning "Probe Agent Detected. Reset Denied."
+                    Break
+                }#End If
             }#End If
         }#End If
         Write-Output "OLD ID: $($LTSI|Select-object -Expand ID -EA 0) LocationID: $($LTSI|Select-object -Expand LocationID -EA 0) MAC: $($LTSI|Select-object -Expand MAC -EA 0)"
         $LTSI=$Null
     }#End Begin
-  
+
     Process{
         Try{
             Stop-LTService
@@ -1968,14 +2000,12 @@ Function Set-LTLogging{
         [switch]$Verbose
     )
 
-      
   Begin{
     if ($Normal -ne $true -and $Verbose -ne $true ){
         Write-Error "Please provide a logging level. -Normal or -Verbose" -ErrorAction Stop
     }
-
   }#End Begin
-  
+
   Process{
     Try{
         Stop-LTService
@@ -1992,7 +2022,7 @@ Function Set-LTLogging{
       Write-Error "ERROR: There was a problem writing the registry key. $($Error[0])" -ErrorAction Stop
     }#End Catch
   }#End Process
-  
+
   End{
     if ($?){
         Get-LTLogging          
@@ -2028,7 +2058,6 @@ Function Get-LTProbeErrors{
 .LINK
     http://labtechconsulting.com
 #> 
-
     [CmdletBinding()]
     Param()
     
@@ -2039,7 +2068,8 @@ Function Get-LTProbeErrors{
             Write-Error "ERROR: Unable to find log. $($Error[0])" -ErrorAction Stop
         }
     }#End Begin
-    process{
+
+    Process{
         $errors = Get-Content $BasePath\LTProbeErrors.txt
         $errors = $errors -join ' ' -split ':::'
         foreach($Line in $Errors){
@@ -2051,6 +2081,7 @@ Function Get-LTProbeErrors{
             Write-Output $object
         }
     }
+
     End{
         if ($?){
         }
@@ -2246,8 +2277,12 @@ Function Rename-LTAddRemove{
     )
 
     Begin{
-        $RegRoots = 'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC'
-        $PublisherRegRoots = ('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}')
+        $RegRoots = ('HKLM:\SOFTWARE\Classes\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F',
+        'HKLM:\SOFTWARE\Classes\Installer\Products\D1003A85576B76D45A1AF09A0FC87FAC')
+        $PublisherRegRoots = ('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{58A3001D-B675-4D67-A5A1-0FA9F08CF7CA}',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{3F460D4C-D217-46B4-80B6-B5ED50BD7CF5}')
         $RegNameFound=0;
         $RegPublisherFound=0;
     }#End Begin
@@ -2403,9 +2438,7 @@ Function Invoke-LTServiceCommand {
             Catch{
               Write-Warning $_.Exception
             } # End Catch
-
         } # End Foreach
-
     } # End Process
 
     End{}
@@ -2631,7 +2664,7 @@ Function Set-LTProxy{
     http://labtechconsulting.com
 #>
 
-[CmdletBinding(SupportsShouldProcess=$true)]
+[CmdletBinding(SupportsShouldProcess=$True)]
 Param(
     [parameter(Mandatory = $False, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 0)]
     [string]$ProxyServerURL,
@@ -2855,7 +2888,6 @@ Function Get-LTProxy{
 .LINK
     http://labtechconsulting.com
 #>
-
     [CmdletBinding()]
     Param(
     )   
