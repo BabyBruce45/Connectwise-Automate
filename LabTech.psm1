@@ -216,7 +216,7 @@ Function Restart-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Error "What If: Stopping: Services NOT Found $($Error[0])" -ErrorAction Stop
+                Write-Error "What If: Stopping: Services NOT Found" -ErrorAction Stop
             }#End If
         }#End IF
     }#End Begin
@@ -284,7 +284,7 @@ Function Stop-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Error "What If: Stopping: Services NOT Found $($Error[0])" -ErrorAction Stop
+                Write-Error "What If: Stopping: Services NOT Found" -ErrorAction Stop
             }#End If
         }#End If
     }#End Begin
@@ -376,7 +376,7 @@ Function Start-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Error "What If: Stopping: Services NOT Found $($Error[0])" -ErrorAction Stop
+                Write-Error "What If: Stopping: Services NOT Found" -ErrorAction Stop
             }#End If
         }#End If
         #Identify processes that are using the tray port 
@@ -1523,7 +1523,7 @@ Function Reset-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Error "What If: Stopping: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
+                Write-Error "What If: Stopping: LabTech Services NOT Found" -ErrorAction Stop
             }#End If
         }#End If
         $Reg = 'HKLM:\Software\LabTech\Service'
