@@ -96,8 +96,7 @@ Function Get-LTServiceInfo{
         Write-Debug "Starting $($myInvocation.InvocationName)"
 
         if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
-            Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed."
-            Return
+            Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed." -ErrorAction Stop
         }
         $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
         $key = $Null
@@ -217,8 +216,7 @@ Function Restart-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Warning "Services NOT Found $($Error[0])"
-                Break
+                Write-Error "What If: Stopping: Services NOT Found $($Error[0])" -ErrorAction Stop
             }#End If
         }#End IF
     }#End Begin
@@ -286,8 +284,7 @@ Function Stop-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Warning "Services NOT Found $($Error[0])"
-                Break
+                Write-Error "What If: Stopping: Services NOT Found $($Error[0])" -ErrorAction Stop
             }#End If
         }#End If
     }#End Begin
@@ -379,8 +376,7 @@ Function Start-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Warning "Services NOT Found $($Error[0])"
-                Break
+                Write-Error "What If: Stopping: Services NOT Found $($Error[0])" -ErrorAction Stop
             }#End If
         }#End If
         #Identify processes that are using the tray port 
@@ -933,8 +929,7 @@ Function Install-LTService{
                 If ($WhatIfPreference -ne $True) {
                     Write-Error "Services are already installed." -ErrorAction Stop
                 } Else {
-                    Write-Warning "Services are already installed."
-                    Return
+                    Write-Error "What if: Stopping: Services are already installed." -ErrorAction Stop
                 }#End If
             }#End If
 
@@ -1304,8 +1299,7 @@ Function Redo-LTService{
                 If ($WhatIfPreference -ne $True) {
                     Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
                 } Else {
-                    Write-Warning "Probe Agent Detected. Re-Install Denied."
-                    Break
+                    Write-Error -Exception [System.OperationCanceledException]"What If: Stopping: Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
                 }#End If
             }#End If
         }#End If
@@ -1529,8 +1523,7 @@ Function Reset-LTService{
             If ($WhatIfPreference -ne $True) {
                 Write-Error "ERROR: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
             } Else {
-                Write-Warning "LabTech Services NOT Found"
-                Break
+                Write-Error "What If: Stopping: LabTech Services NOT Found $($Error[0])" -ErrorAction Stop
             }#End If
         }#End If
         $Reg = 'HKLM:\Software\LabTech\Service'
@@ -1548,8 +1541,7 @@ Function Reset-LTService{
                 If ($WhatIfPreference -ne $True) {
                     Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Reset Denied." -ErrorAction Stop
                 } Else {
-                    Write-Warning "Probe Agent Detected. Reset Denied."
-                    Break
+                    Write-Error -Exception [System.OperationCanceledException]"What If: Stopping: Probe Agent Detected. Reset Denied." -ErrorAction Stop
                 }#End If
             }#End If
         }#End If
@@ -2126,7 +2118,7 @@ Function New-LTServiceBackup{
 
     $LTPath = "$(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)"
     if (-not ($LTPath)) {
-      Write-Error "ERROR: Unable to find LTSvc folder path." -ErrorAction Stop
+        Write-Error "ERROR: Unable to find LTSvc folder path." -ErrorAction Stop
     }
     $BackupPath = "$($LTPath)Backup"
     $Keys = "HKLM\SOFTWARE\LabTech"
@@ -2135,20 +2127,19 @@ Function New-LTServiceBackup{
     Write-Verbose "Checking for registry keys."
     if ((Test-Path ($Keys -replace '^(H[^\\]*)','$1:')) -eq $False){
         Write-Error "ERROR: Unable to find registry information on LTSvc. Make sure the agent is installed." -ErrorAction Stop
-        Return
     }
     if ($(Test-Path -Path $LTPath -PathType Container) -eq $False) {
-      Write-Error "ERROR: Unable to find LTSvc folder path $LTPath" -ErrorAction Stop
+        Write-Error "ERROR: Unable to find LTSvc folder path $LTPath" -ErrorAction Stop
     }
     New-Item $BackupPath -type directory -ErrorAction SilentlyContinue | Out-Null
     if ($(Test-Path -Path $BackupPath -PathType Container) -eq $False) {
-      Write-Error "ERROR: Unable to create backup folder path $BackupPath" -ErrorAction Stop
+        Write-Error "ERROR: Unable to create backup folder path $BackupPath" -ErrorAction Stop
     }
   }#End Begin
   
   Process{
     Try{
-    Copy-Item $LTPath $BackupPath -Recurse -Force
+        Copy-Item $LTPath $BackupPath -Recurse -Force
     }#End Try
     
     Catch{
@@ -2205,8 +2196,7 @@ Function Get-LTServiceInfoBackup{
   Begin{
     Write-Verbose "Checking for registry keys."
     If ((Test-Path 'HKLM:\SOFTWARE\LabTechBackup\Service') -eq $False){
-        Write-Error "ERROR: Unable to find backup information on LTSvc. Use New-LTServiceBackup to create a settings backup."
-        Return
+        Write-Error "ERROR: Unable to find backup information on LTSvc. Use New-LTServiceBackup to create a settings backup." -ErrorAction Stop
     }
     $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
   }#End Begin
@@ -2214,13 +2204,13 @@ Function Get-LTServiceInfoBackup{
   Process{
     Try{
         $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select-Object * -exclude $exclude
-        if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
+        If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
             $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath)
         }
-        if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
-        $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
-        Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
-    }
+        If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+            $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
+            Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
+        }
     }#End Try
     
     Catch{
@@ -2711,11 +2701,11 @@ Param(
 ((($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword)) -and (($ResetProxy -eq $True) -or ($DetectProxy -eq $True))) -or 
 ((($ProxyUsername) -or ($ProxyPassword)) -and (-not ($ProxyServerURL) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword) -or ($ResetProxy -eq $True) -or ($DetectProxy -eq $True))) -or 
 ((($EncodedProxyUsername) -or ($EncodedProxyPassword)) -and (-not ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($ResetProxy -eq $True) -or ($DetectProxy -eq $True)))
-        ) {Write-Error "Set-LTProxy: Invalid Parameter specified"; Break}
+        ) {Write-Error "Set-LTProxy: Invalid Parameter specified" -ErrorAction Stop}
         If (-not (($ResetProxy -eq $True) -or ($DetectProxy -eq $True) -or ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword))) 
         {
-            If ($Args.Count -gt 0) {Write-Error "Set-LTProxy: Unknown Parameter specified"; Break}
-            Else {Write-Error "Set-LTProxy: Required Parameters Missing"; Break}
+            If ($Args.Count -gt 0) {Write-Error "Set-LTProxy: Unknown Parameter specified" -ErrorAction Stop}
+            Else {Write-Error "Set-LTProxy: Required Parameters Missing" -ErrorAction Stop}
         }
 
         Try{
