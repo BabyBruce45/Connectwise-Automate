@@ -95,14 +95,15 @@ Function Get-LTServiceInfo{
         Clear-Variable key,BasePath,exclude,Servers -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
         Write-Debug "Starting $($myInvocation.InvocationName)"
 
-        if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
-            Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed." -ErrorAction Stop
-        }
         $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
         $key = $Null
     }#End Begin
 
     Process{
+        if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
+            Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed."; Return $Null
+        }
+
         If ($PSCmdlet.ShouldProcess("LTService", "Retrieving Service Registry Values")) {
             Write-Verbose "Checking for LT Service registry keys."
             Try{
