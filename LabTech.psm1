@@ -1296,22 +1296,29 @@ Function Redo-LTService{
         Write-Debug "Starting $($myInvocation.InvocationName)"
 
         # Gather install stats from registry or backed up settings
-        $Settings = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False
-        If (($Settings)) {
-            If (($Settings|Select-Object -Expand Probe -EA 0) -eq '1') {
-                If ($Force -eq $True) {
-                    Write-Output "Probe Agent Detected. Re-Install Forced."
-                } Else {
-                    If ($WhatIfPreference -ne $True) {
-                        Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
+        Try {
+            $Settings = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False
+            If (($Settings) -ne $Null) {
+                If (($Settings|Select-Object -Expand Probe -EA 0) -eq '1') {
+                    If ($Force -eq $True) {
+                        Write-Output "Probe Agent Detected. Re-Install Forced."
                     } Else {
-                        Write-Error -Exception [System.OperationCanceledException]"What If: Stopping: Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
+                        If ($WhatIfPreference -ne $True) {
+                            Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
+                        } Else {
+                            Write-Error -Exception [System.OperationCanceledException]"What If: Stopping: Probe Agent Detected. Re-Install Denied." -ErrorAction Stop
+                        }#End If
                     }#End If
                 }#End If
             }#End If
-        } Else {
+        } Catch {
+            Write-Debug "Failed to retrieve current Agent Settings."        
+        }#End Catch
+        If (($Settings) -eq $Null) {
             Write-Debug "Unable to retrieve current Agent Settings. Testing for Backup Settings"
-            $Settings = Get-LTServiceInfoBackup -ErrorAction SilentlyContinue
+            Try {
+                $Settings = Get-LTServiceInfoBackup -EA 0
+            } Catch {}
         }
         $ServerList=@()
     }#End Begin
