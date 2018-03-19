@@ -1373,7 +1373,10 @@ Function Redo-LTService{
         }#End Catch
 
         Finally{
-            If ($WhatIfPreference -ne $True) {Start-Sleep 10}
+            If ($WhatIfPreference -ne $True) {
+                Write-Verbose "Waiting 20 seconds for prior uninstall to settle before starting Install."
+                Start-Sleep 20
+            }
         }
 
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
