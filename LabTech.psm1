@@ -299,7 +299,8 @@ Function Stop-LTService{
             Write-Verbose "Stopping Labtech Services"
             Try{
                 ('LTService','LTSvcMon') | Foreach-Object {
-                    $Null=sc.exe stop "$($_)" 2>''
+                    Try {$Null=& $env:windir\system32\sc.exe stop "$($_)" 2>''} 
+                    Catch {Write-Output "Error calling sc.exe."}
                 } 
                 $timeout = new-timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
@@ -393,7 +394,8 @@ Function Start-LTService{
     Process{
         Try{
             If((('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -eq 'Stopped'} | Measure-Object | Select-Object -Expand Count) -gt 0) {
-                $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
+                Try {$netstat=& $env:windir\system32\netstat.exe -a -o -n 2>'' | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0} 
+                Catch {Write-Output "Error calling netstat.exe."; $netstat=$null}
                 Foreach ($line in $netstat){
                     $processes += ($line -split ' {4,}')[-1]
                 }#End Foreach
@@ -417,7 +419,7 @@ Function Start-LTService{
                 @('LTService','LTSvcMon') | ForEach-Object {
                     If (Get-Service $_ -EA 0) {
                         Set-Service $_ -StartupType Automatic -EA 0 -Confirm:$False -WhatIf:$False
-                        $Null=sc.exe start "$($_)" 2>''
+                        $Null=& $env:windir\system32\sc.exe start "$($_)" 2>''
                         $startedSvcCount++
                         Write-Debug "Executed Start Service for $($_)"
                     }#End If
@@ -730,7 +732,8 @@ Function Uninstall-LTService{
                     If ($PSCmdlet.ShouldProcess("$($BasePath)\wodVPN.dll", "Unregister DLL")) {
                         #Unregister DLL
                         Write-Debug "Excuting Command ""regsvr32.exe /u $($BasePath)\wodVPN.dll /s"""
-                        regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''
+                        Try {& $env:windir\system32\regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''} 
+                        Catch {Write-Output "Error calling regsvr32.exe."}
                     }
                 }#End If
 
@@ -739,7 +742,7 @@ Function Uninstall-LTService{
                         #Run MSI uninstaller for current installation
                         Write-Verbose "Launching MSI Uninstall."
                         Write-Debug "Excuting Command ""msiexec.exe $($xarg)"""
-                        Start-Process -Wait -FilePath msiexec.exe -ArgumentList $xarg
+                        Start-Process -Wait -FilePath $env:windir\system32\msiexec.exe -ArgumentList $xarg
                         Start-Sleep -Seconds 5
                     } Else {
                         Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
@@ -764,8 +767,9 @@ Function Uninstall-LTService{
                     If (Get-Service $_ -EA 0) {
                         If ( $PSCmdlet.ShouldProcess("$($_)","Remove Service") ) {
                             Write-Debug "Removing Service: $($_)"
-                            sc.exe delete "$($_)" 2>''
-                        }#End If
+                            Try {& $env:windir\system32\sc.exe delete "$($_)" 2>''} 
+                            Catch {Write-Output "Error calling sc.exe."}
+                            }#End If
                     }#End If
                 }#End ForEach-Object
 
@@ -964,11 +968,11 @@ Function Install-LTService{
             }
             Else{
                 If ( $PSCmdlet.ShouldProcess("NetFx3", "Add Windows Feature") ) {
-                    $Result = Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''
+                    Try {$Result=& $env:windir\system32\Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''} 
+                    Catch {Write-Output "Error calling Dism.exe."; $Result=$Null}
                     If ($Result -contains "State : Enabled"){
                         # also check reboot status, unsure of possible outputs
                         # Restart Required : Possible 
-
                         Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                     }
                     Else { 
@@ -1125,7 +1129,8 @@ Function Install-LTService{
             Try{
                 If ( $PSCmdlet.ShouldProcess("msiexec.exe $($iarg)", "Execute Install") ) {
                     Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
-                    Start-Process -Wait -FilePath msiexec.exe -ArgumentList $iarg
+                    Start-Process -Wait -FilePath $env:windir\system32\msiexec.exe -ArgumentList $iarg
+                    Start-Sleep 5
                 }
                 If (($Script:LTProxy.Enabled) -eq $True) {
                     Write-Verbose "Proxy Configuration Needed. Applying Proxy Settings to Agent Installation."
@@ -1955,7 +1960,8 @@ Function Test-LTPorts{
 
             [array]$processes = @()
             #Get all processes that are using LTTrayPort (Default 42000)
-            $netstat = netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($TrayPort).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0
+            Try {$netstat=& $env:windir\system32\netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($TrayPort).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0} 
+            Catch {Write-Output "Error calling netstat.exe."; $netstat=$null}
             Foreach ($line In $netstat){
                 $processes += ($line -split ' {4,}')[-1]
             }
@@ -2250,20 +2256,20 @@ Function New-LTServiceBackup{
     }#End Try
     
     Catch{
-    Write-Error "ERROR: There was a problem backing up the LTSvc Folder. $($Error[0])"
+        Write-Error "ERROR: There was a problem backing up the LTSvc Folder. $($Error[0])"
     }#End Catch
 
     Try{
-    $Result = reg.exe export "$Keys" "$RegPath" /y 2>''
-    $Reg = Get-Content $RegPath
-    $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
-    $Reg | Out-File $RegPath
-    $Result = reg.exe import "$RegPath" 2>''
-    $True | Out-Null #Protection to prevent exit status error
+        $Result = & $env:windir\system32\reg.exe export "$Keys" "$RegPath" /y 2>''
+        $Reg = Get-Content $RegPath
+        $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
+        $Reg | Out-File $RegPath
+        $Result = & $env:windir\system32\reg.exe import "$RegPath" 2>''
+        $True | Out-Null #Protection to prevent exit status error
     }#End Try
- 
+
     Catch{
-    Write-Error "ERROR: There was a problem backing up the LTSvc Registry keys. $($Error[0])"
+        Write-Error "ERROR: There was a problem backing up the LTSvc Registry keys. $($Error[0])"
     }#End Catch
   }#End Process
   
@@ -2530,8 +2536,13 @@ Function Invoke-LTServiceCommand {
                 If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command '$($Cmd)' ($($CommandID))")) {
                     If (($CommandID) -ne $Null) {
                         Write-Debug "Sending service command '$($Cmd)' ($($CommandID)) to 'LTService'"
-                        $Null=sc.exe control LTService $($CommandID) 2>''
-                        Write-Output "Sent Command '$($Cmd)' to 'LTService'"
+                        Try {
+                            $Null=& $env:windir\system32\sc.exe control LTService $($CommandID) 2>''
+                            Write-Output "Sent Command '$($Cmd)' to 'LTService'"
+                        } 
+                        Catch {
+                            Write-Output "Error calling sc.exe. Failed to send command."
+                        }
                     }#End If
                 }#End If
             } # End Try
@@ -3184,6 +3195,8 @@ Function Initialize-LTServiceModule{
 #endregion Functions
 
 $PublicFunctions=((@"
+ConvertFrom-LTSecurity
+ConvertTo-LTSecurity
 Get-LTError
 Get-LTLogging
 Get-LTProbeErrors
@@ -3206,14 +3219,21 @@ Start-LTService
 Stop-LTService
 Test-LTPorts
 Uninstall-LTService
-"@) -replace "[`r`n]+","`n") -split "[`n]"
+"@) -replace "[`r`n,\s]+",',') -split ','
 
 $PublicAlias=((@"
 ReInstall-LTService
-"@) -replace "[`r`n]+","`n") -split "[`n]"
+"@) -replace "[`r`n,\s]+",',') -split ','
 
 If ($MyInvocation.Line -contains 'Import-Module') {
     Export-ModuleMember -Function $PublicFunctions -Alias $PublicAlias -EA 0 -WA 0
+<# 
+'Just a small code block to use when developing new features to ensure new functions are not missed.
+'Here just so that I don't need to track it down when I want it. - DJW
+
+    $UnPublicFunctions=(Get-Content 'Script Source' | Select-String -Pattern '(?<=^function )[-\w]+' -AllMatches | Select-Object -expand matches) | ForEach-Object {if ($PublicFunctions -notcontains $_.value) {$_.value}}; 
+    if ($UnPublicFunctions) {Write-Debug "Not publishing functions: $(($UnPublicFunctions) -join ',')"}
+#>
 }
 
 $Null=Initialize-LTServiceModule
