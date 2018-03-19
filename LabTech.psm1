@@ -1595,7 +1595,7 @@ Function Reset-LTService{
 
     End{
         If ($?){
-            If ($!($NoWait) -and $PSCmdlet.ShouldProcess("LTService", "Discover new settings after Service Start")) {
+            If (!$($NoWait) -and $PSCmdlet.ShouldProcess("LTService", "Discover new settings after Service Start")) {
                 $timeout = New-Timespan -Minutes 1
                 $sw = [diagnostics.stopwatch]::StartNew()
                 $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
