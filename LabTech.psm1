@@ -94,7 +94,6 @@ Function Get-LTServiceInfo{
     Begin{
         Clear-Variable key,BasePath,exclude,Servers -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
         Write-Debug "Starting $($myInvocation.InvocationName)"
-#Write-Debug "Variable Information: $( (get-variable | out-string -stream) -join "`n")"
         $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
         $key = $Null
     }#End Begin
