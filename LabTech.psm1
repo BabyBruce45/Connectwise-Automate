@@ -116,7 +116,7 @@ Function Get-LTServiceInfo{
                     }
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
                 }
-                $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0))
+                $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0)) -replace '\\\\','\'
                 if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
                     $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
                     Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
@@ -547,9 +547,10 @@ Function Uninstall-LTService{
     [CmdletBinding(SupportsShouldProcess=$True)]
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [AllowNull()]
         [string[]]$Server,
         [Parameter(ValueFromPipelineByPropertyName = $true)]
-        [switch]$Backup = $False,
+        [switch]$Backup,
         [switch]$Force
     )
 
@@ -737,19 +738,20 @@ Function Uninstall-LTService{
 
                 #Kill all running processes from %ltsvcdir%   
                 if (Test-Path $BasePath){
-                    $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand Name|ForEach-Object {$_.Trim('.exe')})
+                    $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand FullName)
                     if ($Executables) {
-                        Write-Verbose "Terminating LabTech Processes if found running: $($Executables)"
-                        Get-Process | Where-Object {$Executables -contains $_.ProcessName } | ForEach-Object {
+                        Write-Verbose "Terminating LabTech Processes from $($BasePath) if found running: $($Executables.Replace($BasePath,'') -replace '^\\','')"
+                        Get-Process | Where-Object {$Executables -contains $_.Path } | ForEach-Object {
                             Write-Debug "Terminating Process $($_.ProcessName)"
                             $($_) | Stop-Process -Force -ErrorAction SilentlyContinue
                         }
+                        Get-ChildItem $BasePath -Filter labvnc.exe -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction 0
                     }
 
                     If ($PSCmdlet.ShouldProcess("$($BasePath)\wodVPN.dll", "Unregister DLL")) {
                         #Unregister DLL
                         Write-Debug "Executing Command ""regsvr32.exe /u $($BasePath)\wodVPN.dll /s"""
-                        Try {& $env:windir\system32\regsvr32.exe /u $BasePath\wodVPN.dll /s 2>''} 
+                        Try {& $env:windir\system32\regsvr32.exe /u "$($BasePath)\wodVPN.dll" /s 2>''} 
                         Catch {Write-Output "Error calling regsvr32.exe."}
                     }
                 }#End If
@@ -780,7 +782,7 @@ Function Uninstall-LTService{
 
                 Write-Verbose "Removing Services if found."
                 #Remove Services
-                @('LTService','LTSvcMon') | ForEach-Object {
+                @('LTService','LTSvcMon','LabVNC') | ForEach-Object {
                     If (Get-Service $_ -EA 0) {
                         If ( $PSCmdlet.ShouldProcess("$($_)","Remove Service") ) {
                             Write-Debug "Removing Service: $($_)"
@@ -932,17 +934,22 @@ Function Install-LTService{
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true, Mandatory=$True)]
         [string[]]$Server,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ValueFromPipelineByPropertyName = $True)]
         [Alias("Password")]
+        [AllowNull()]
         [string]$ServerPassword,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ValueFromPipelineByPropertyName = $True)]
+        [AllowNull()]
         [int]$LocationID,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ValueFromPipelineByPropertyName = $True)]
+        [AllowNull()]
         [int]$TrayPort,
-        [string]$Rename = $Null,
-        [switch]$Hide = $False,
-        [switch]$Force = $False,
-        [switch]$NoWait = $False
+        [Parameter()]
+        [AllowNull()]
+        [string]$Rename,
+        [switch]$Hide,
+        [switch]$Force,
+        [switch]$NoWait
     )
 
     Begin{
@@ -1134,14 +1141,14 @@ Function Install-LTService{
                         }#End If
                     }#End If
                 }#End For
-                If ($GoodTrayPort -and $GoodTrayPort -ne $TrayPort) {
+                If ($GoodTrayPort -and $GoodTrayPort -ne $TrayPort -and $GoodTrayPort -ge 1 -and $GoodTrayPort -le 65535) {
                     Write-Verbose "TrayPort $($TrayPort) is in use. Changing TrayPort to $($GoodTrayPort)"
                     $TrayPort=$GoodTrayPort
                 }#End If
                 Write-Output "Starting Install."
             }#End If
 
-            $iarg = "/i $env:windir\temp\LabTech\Installer\Agent_Install.msi SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID SERVICEPORT=$TrayPort /qn /l $logpath\$logfile.log"
+            $iarg = "/i ""$env:windir\temp\LabTech\Installer\Agent_Install.msi"" SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID SERVICEPORT=$TrayPort /qn /l ""$logpath\$logfile.log"""
 
             Try{
                 If ( $PSCmdlet.ShouldProcess("msiexec.exe $($iarg)", "Execute Install") ) {
@@ -1325,16 +1332,21 @@ Function Redo-LTService{
 #> 
     [CmdletBinding(SupportsShouldProcess=$True)]
     Param(
-        [Parameter(ValueFromPipelineByPropertyName = $true, ValueFromPipeline=$True)]
+        [Parameter(ValueFromPipelineByPropertyName = $True, ValueFromPipeline=$True)]
+        [AllowNull()]
         [string[]]$Server,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ValueFromPipelineByPropertyName = $True)]
         [Alias("Password")]
+        [AllowNull()]
         [string]$ServerPassword,
-        [Parameter(ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ValueFromPipelineByPropertyName = $True)]
+        [AllowNull()]
         [string]$LocationID,
-        [switch]$Backup = $False,
-        [switch]$Hide = $False,
-        [string]$Rename = $null,
+        [switch]$Backup,
+        [switch]$Hide,
+        [Parameter()]
+        [AllowNull()]
+        [string]$Rename,
         [switch]$Force
     )
 
@@ -1412,7 +1424,7 @@ Function Redo-LTService{
         Write-Output "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
         Write-Verbose "Starting: Uninstall-LTService -Server $($ServerList -join ',')"
         Try{
-            Uninstall-LTService -Server $serverlist -ErrorAction Stop -Force
+            Uninstall-LTService -Server $ServerList -ErrorAction Stop -Force
         }#End Try
 
         Catch{
@@ -1428,7 +1440,7 @@ Function Redo-LTService{
 
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
-            Install-LTService -Server $ServerList $ServerPassword -LocationID $LocationID -Force -Hide:$Hide $RenameArg 
+            Install-LTService -Server $ServerList -ServerPassword $ServerPassword -LocationID $LocationID -Hide:$Hide -Rename $Rename -Force
         }#End Try
 
         Catch{
@@ -1487,7 +1499,7 @@ Function Get-LTError{
     }#End Begin
 
     Process{
-        if ($(Test-Path -Path $BasePath\LTErrors.txt) -eq $False) {
+        if ($(Test-Path -Path "$BasePath\LTErrors.txt") -eq $False) {
             Write-Error "ERROR: Unable to find log. $($Error[0])"
             return
         }
@@ -2220,11 +2232,11 @@ Function Get-LTProbeErrors{
     }#End Begin
 
     Process{
-        if ($(Test-Path -Path $BasePath\LTProbeErrors.txt) -eq $False) {
+        if ($(Test-Path -Path "$BasePath\LTProbeErrors.txt") -eq $False) {
             Write-Error "ERROR: Unable to find log. $($Error[0])"
             return
         }
-        $errors = Get-Content $BasePath\LTProbeErrors.txt
+        $errors = Get-Content "$BasePath\LTProbeErrors.txt"
         $errors = $errors -join ' ' -split ':::'
         Foreach($Line in $Errors){
             $items = $Line -split "`t" -replace ' - ',''
@@ -2378,7 +2390,7 @@ Function Get-LTServiceInfoBackup{
         Try{
             $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select-Object * -exclude $exclude
             If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
-                $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath)
+                $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath) -replace '\\\\','\'
             }
             If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
                 $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
@@ -2436,6 +2448,7 @@ Function Rename-LTAddRemove{
         $Name,
 
         [Parameter(Mandatory=$False)]
+        [AllowNull()]
         [string]$PublisherName
     )
 
@@ -2698,6 +2711,7 @@ Param(
     [string[]]$InputString,
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $True)]
+    [AllowNull()]
     [string[]]$Key,
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
