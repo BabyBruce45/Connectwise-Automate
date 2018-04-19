@@ -309,7 +309,7 @@ Function Stop-LTService{
             Write-Verbose "Stopping Labtech Services"
             Try{
                 ('LTService','LTSvcMon') | Foreach-Object {
-                    Try {$Null=& $env:windir\system32\sc.exe stop "$($_)" 2>''} 
+                    Try {$Null=& "$env:windir\system32\sc.exe" stop "$($_)" 2>''} 
                     Catch {Write-Output "Error calling sc.exe."}
                 } 
                 $timeout = new-timespan -Minutes 1
@@ -410,7 +410,7 @@ Function Start-LTService{
         }#End If
         Try{
             If((('LTService') | Get-Service -EA 0 | Where-Object {$_.Status -eq 'Stopped'} | Measure-Object | Select-Object -Expand Count) -gt 0) {
-                Try {$netstat=& $env:windir\system32\netstat.exe -a -o -n 2>'' | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0} 
+                Try {$netstat=& "$env:windir\system32\netstat.exe" -a -o -n 2>'' | Select-String -Pattern " .*[0-9\.]+:$($Port).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0} 
                 Catch {Write-Output "Error calling netstat.exe."; $netstat=$null}
                 Foreach ($line in $netstat){
                     $processes += ($line -split ' {4,}')[-1]
@@ -435,7 +435,7 @@ Function Start-LTService{
                 @('LTService','LTSvcMon') | ForEach-Object {
                     If (Get-Service $_ -EA 0) {
                         Set-Service $_ -StartupType Automatic -EA 0 -Confirm:$False -WhatIf:$False
-                        $Null=& $env:windir\system32\sc.exe start "$($_)" 2>''
+                        $Null=& "$env:windir\system32\sc.exe" start "$($_)" 2>''
                         $startedSvcCount++
                         Write-Debug "Executed Start Service for $($_)"
                     }#End If
@@ -618,10 +618,10 @@ Function Uninstall-LTService{
         If ($WhatIfPreference -ne $True) {
             #Cleanup previous uninstallers
             Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue -Force -Confirm:$False
-            New-Item $env:windir\temp\LabTech\Installer -type directory -ErrorAction SilentlyContinue | Out-Null
+            New-Item "$env:windir\temp\LabTech\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
         }#End If
 
-        $xarg = "/x `"$($env:windir)\temp\LabTech\Installer\Agent_Install.msi`" /qn"
+        $xarg = "/x ""$($env:windir)\temp\LabTech\Installer\Agent_Install.msi"" /qn"
     }#End Begin
 
     Process{
@@ -751,7 +751,7 @@ Function Uninstall-LTService{
                     If ($PSCmdlet.ShouldProcess("$($BasePath)\wodVPN.dll", "Unregister DLL")) {
                         #Unregister DLL
                         Write-Debug "Executing Command ""regsvr32.exe /u $($BasePath)\wodVPN.dll /s"""
-                        Try {& $env:windir\system32\regsvr32.exe /u "$($BasePath)\wodVPN.dll" /s 2>''} 
+                        Try {& "$env:windir\system32\regsvr32.exe" /u "$($BasePath)\wodVPN.dll" /s 2>''} 
                         Catch {Write-Output "Error calling regsvr32.exe."}
                     }
                 }#End If
@@ -761,7 +761,7 @@ Function Uninstall-LTService{
                         #Run MSI uninstaller for current installation
                         Write-Verbose "Launching MSI Uninstall."
                         Write-Debug "Executing Command ""msiexec.exe $($xarg)"""
-                        Start-Process -Wait -FilePath $env:windir\system32\msiexec.exe -ArgumentList $xarg
+                        Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $xarg
                         Start-Sleep -Seconds 5
                     } Else {
                         Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
@@ -786,7 +786,7 @@ Function Uninstall-LTService{
                     If (Get-Service $_ -EA 0) {
                         If ( $PSCmdlet.ShouldProcess("$($_)","Remove Service") ) {
                             Write-Debug "Removing Service: $($_)"
-                            Try {& $env:windir\system32\sc.exe delete "$($_)" 2>''} 
+                            Try {& "$env:windir\system32\sc.exe" delete "$($_)" 2>''} 
                             Catch {Write-Output "Error calling sc.exe."}
                             }#End If
                     }#End If
@@ -829,10 +829,10 @@ Function Uninstall-LTService{
             If ($WhatIfPreference -ne $True) {
                 If ($?){
                     #Post Uninstall Check
-                    If((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+                    If((Test-Path "$env:windir\ltsvc") -or (Test-Path "$env:windir\temp\_ltudpate") -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
                         Start-Sleep -Seconds 10
                     }#End If
-                    If((Test-Path $env:windir\ltsvc) -or (Test-Path $env:windir\temp\_ltudpate) -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
+                    If((Test-Path "$env:windir\ltsvc") -or (Test-Path "$env:windir\temp\_ltudpate") -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
                         Write-Error "Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
                     } Else {
                         Write-Output "LabTech has been successfully uninstalled."
@@ -992,7 +992,7 @@ Function Install-LTService{
             }
             Else{
                 If ( $PSCmdlet.ShouldProcess("NetFx3", "Add Windows Feature") ) {
-                    Try {$Result=& $env:windir\system32\Dism.exe /online /get-featureinfo /featurename:NetFx3 2>''} 
+                    Try {$Result=& "$env:windir\system32\Dism.exe" /online /get-featureinfo /featurename:NetFx3 2>''} 
                     Catch {Write-Output "Error calling Dism.exe."; $Result=$Null}
                     If ($Result -contains "State : Enabled"){
                         # also check reboot status, unsure of possible outputs
@@ -1168,7 +1168,7 @@ Function Install-LTService{
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
                         If ($svcRun -eq 0) {
                             Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
-                            Start-Process -Wait -FilePath $env:windir\system32\msiexec.exe -ArgumentList $iarg
+                            Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $iarg
                             Start-Sleep 5
                         }
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
@@ -2021,7 +2021,7 @@ Function Test-LTPorts{
 
             [array]$processes = @()
             #Get all processes that are using LTTrayPort (Default 42000)
-            Try {$netstat=& $env:windir\system32\netstat.exe -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($TrayPort).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0} 
+            Try {$netstat=& "$env:windir\system32\netstat.exe" -a -o -n | Select-String -Pattern " .*[0-9\.]+:$($TrayPort).*[0-9\.]+:[0-9]+ .*?([0-9]+)" -EA 0} 
             Catch {Write-Output "Error calling netstat.exe."; $netstat=$null}
             Foreach ($line In $netstat){
                 $processes += ($line -split ' {4,}')[-1]
@@ -2325,14 +2325,14 @@ Function New-LTServiceBackup{
 
     Try{
         Write-Debug "Exporting Registry Data"
-        $Result = & $env:windir\system32\reg.exe export "$Keys" "$RegPath" /y 2>''
+        $Result = & "$env:windir\system32\reg.exe" export "$Keys" "$RegPath" /y 2>''
         Write-Debug "Loading and modifying registry key name"
         $Reg = Get-Content $RegPath
         $Reg = $Reg -replace [Regex]::Escape('[HKEY_LOCAL_MACHINE\SOFTWARE\LabTech'),'[HKEY_LOCAL_MACHINE\SOFTWARE\LabTechBackup'
         Write-Debug "Writing output information"
         $Reg | Out-File $RegPath
         Write-Debug "Importing Registry data to Backup Path"
-        $Result = & $env:windir\system32\reg.exe import "$RegPath" 2>''
+        $Result = & "$env:windir\system32\reg.exe" import "$RegPath" 2>''
         $True | Out-Null #Protection to prevent exit status error
     }#End Try
 
@@ -2610,7 +2610,7 @@ Function Invoke-LTServiceCommand {
                     If (($CommandID) -ne $Null) {
                         Write-Debug "Sending service command '$($Cmd)' ($($CommandID)) to 'LTService'"
                         Try {
-                            $Null=& $env:windir\system32\sc.exe control LTService $($CommandID) 2>''
+                            $Null=& "$env:windir\system32\sc.exe" control LTService $($CommandID) 2>''
                             Write-Output "Sent Command '$($Cmd)' to 'LTService'"
                         } 
                         Catch {
