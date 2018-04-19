@@ -3264,7 +3264,7 @@ Function Initialize-LTServiceModule{
 
 #endregion Functions
 
-$PublicFunctions=((@"
+$PublicFunctions=@(((@"
 ConvertFrom-LTSecurity
 ConvertTo-LTSecurity
 Get-LTError
@@ -3289,13 +3289,13 @@ Start-LTService
 Stop-LTService
 Test-LTPorts
 Uninstall-LTService
-"@) -replace "[`r`n,\s]+",',') -split ','
+"@) -replace "[`r`n,\s]+",',') -split ',')
 
-$PublicAlias=((@"
+$PublicAlias=@(((@"
 ReInstall-LTService
-"@) -replace "[`r`n,\s]+",',') -split ','
+"@) -replace "[`r`n,\s]+",',') -split ',')
 
-If ($MyInvocation.Line -contains 'Import-Module' -or $MyInvocation.MyCommand -contains 'Import-Module') {
+If ($MyInvocation.Line -match 'Import-Module' -or $MyInvocation.MyCommand -match 'Import-Module') {
     Export-ModuleMember -Function $PublicFunctions -Alias $PublicAlias -EA 0 -WA 0
 <# 
 'Just a small code block to use when developing new features to ensure new functions are not missed.
