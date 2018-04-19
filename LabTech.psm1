@@ -1458,7 +1458,7 @@ Function Redo-LTService{
     }#End End
 }#End Function Redo-LTService
 #endregion Redo-LTService
-Set-Alias -Name Reinstall-LTService -Value Redo-LTService
+Set-Alias -Name ReInstall-LTService -Value Redo-LTService
 
 Function Get-LTError{
 #region [Get-LTError]-----------------------------------------------------------
@@ -3295,7 +3295,7 @@ $PublicAlias=((@"
 ReInstall-LTService
 "@) -replace "[`r`n,\s]+",',') -split ','
 
-If ($MyInvocation.Line -contains 'Import-Module') {
+If ($MyInvocation.Line -contains 'Import-Module' -or $MyInvocation.MyCommand -contains 'Import-Module') {
     Export-ModuleMember -Function $PublicFunctions -Alias $PublicAlias -EA 0 -WA 0
 <# 
 'Just a small code block to use when developing new features to ensure new functions are not missed.
