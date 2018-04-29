@@ -740,7 +740,7 @@ Function Uninstall-LTService{
                 if (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand FullName)
                     if ($Executables) {
-                        Write-Verbose "Terminating LabTech Processes from $($BasePath) if found running: $($Executables.Replace($BasePath,'') -replace '^\\','')"
+                        Write-Verbose "Terminating LabTech Processes from $($BasePath) if found running: $(($Executables) -replace "$BasePath",'' -replace '^\\','')"
                         Get-Process | Where-Object {$Executables -contains $_.Path } | ForEach-Object {
                             Write-Debug "Terminating Process $($_.ProcessName)"
                             $($_) | Stop-Process -Force -ErrorAction SilentlyContinue
