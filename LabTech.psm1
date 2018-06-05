@@ -880,6 +880,9 @@ Function Install-LTService{
 
 .PARAMETER Hide
     This will call Hide-LTAddRemove after the install.
+    
+.PARAMETER SkipDotNet
+    This will disable the error checking for the .NET 3.5 and .NET 2.0 frameworks during the install process.
 
 .PARAMETER Force
     This will disable some of the error checking on the install process.
@@ -926,6 +929,10 @@ Function Install-LTService{
     Update Date: 3/13/2018
     Purpose/Change: Added -NoWait parameter.
     Added minimum size requirement for agent installer to detect and skip a bad file download.
+    
+    Update Date: 6/5/2018
+    Purpose/Change: Added -SkipDotNet parameter.
+    Allows for skipping of .NET 3.5 and 2.0 framework checks for installing on OS with .NET 4.0+ already installed
 
 .LINK
     http://labtechconsulting.com
