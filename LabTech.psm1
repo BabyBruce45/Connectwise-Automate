@@ -948,6 +948,7 @@ Function Install-LTService{
         [AllowNull()]
         [string]$Rename,
         [switch]$Hide,
+        [switch]$SkipDotNet,
         [switch]$Force,
         [switch]$NoWait
     )
@@ -969,6 +970,8 @@ Function Install-LTService{
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
             Throw "Needs to be ran as Administrator" 
         }
+
+ if (!$SkipDotNet) {
 
         $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
         if (-not ($DotNet -like '3.5.*')){
@@ -1020,6 +1023,7 @@ Function Install-LTService{
                 Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
             }#End If
         }#End If
+}#End If
 
         $logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
         $logfile = "LTAgentInstall"
