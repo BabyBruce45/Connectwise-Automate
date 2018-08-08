@@ -26,6 +26,9 @@
     Update Date: 2/1/2018
     Purpose/Change: Updates for support of Proxy Settings. Enabled -WhatIf processing for many functions.
 
+    Update Date: 8/7/2018
+    Purpose/Change: Added support for TLS 1.2
+
 #>
 
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
@@ -60,6 +63,8 @@ Add-Type -Debug:$False @"
     }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+#Enable TLS 1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol + [System.Net.SecurityProtocolType]::Tls12
 
 #region [Functions]-------------------------------------------------------------
 
