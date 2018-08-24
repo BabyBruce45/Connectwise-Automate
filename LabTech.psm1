@@ -63,13 +63,11 @@ Add-Type -Debug:$False @"
     }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-#Enable TLS 1.2
-if ([Net.ServicePointManager]::SecurityProtocol.ToString().Split(',').Trim() -notcontains 'Tls12') {
-            $securityProtocol=@()
-            $securityProtocol+=[Net.ServicePointManager]::SecurityProtocol
-            $securityProtocol+=[Net.SecurityProtocolType]3072
-            [Net.ServicePointManager]::SecurityProtocol=$securityProtocol
-}
+#Enable TLS, TLS1.1, TLS1.2 in this session if they are available
+IF([Net.SecurityProtocolType]::Tls) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls}
+IF([Net.SecurityProtocolType]::Tls11) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls11}
+IF([Net.SecurityProtocolType]::Tls12) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12}
+
 #region [Functions]-------------------------------------------------------------
 
 Function Get-LTServiceInfo{ 
