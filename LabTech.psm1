@@ -431,7 +431,7 @@ Function Start-LTService{
                             Write-Warning "There was an issue killing the following process: $proc"
                             Write-Warning "This generally means that a 'protected application' is using this port."
                             $newPort = [int]$port + 1
-                            if($newPort > 42009) {$newPort = 42000}
+                            if($newPort -gt 42009) {$newPort = 42000}
                             Write-Warning "Setting tray port to $newPort."
                             New-ItemProperty -Path "HKLM:\Software\Labtech\Service" -Name TrayPort -PropertyType String -Value $newPort -Force -WhatIf:$False -Confirm:$False | Out-Null
                         }#End Catch
