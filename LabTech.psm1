@@ -26,6 +26,9 @@
     Update Date: 2/1/2018
     Purpose/Change: Updates for support of Proxy Settings. Enabled -WhatIf processing for many functions.
 
+    Update Date: 8/7/2018
+    Purpose/Change: Added support for TLS 1.2
+
 #>
 
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
@@ -60,7 +63,13 @@ Add-Type -Debug:$False @"
     }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-
+#Enable TLS 1.2
+if ([Net.ServicePointManager]::SecurityProtocol.ToString().Split(',').Trim() -notcontains 'Tls12') {
+            $securityProtocol=@()
+            $securityProtocol+=[Net.ServicePointManager]::SecurityProtocol
+            $securityProtocol+=[Net.SecurityProtocolType]3072
+            [Net.ServicePointManager]::SecurityProtocol=$securityProtocol
+}
 #region [Functions]-------------------------------------------------------------
 
 Function Get-LTServiceInfo{ 
@@ -880,6 +889,9 @@ Function Install-LTService{
 
 .PARAMETER Hide
     This will call Hide-LTAddRemove after the install.
+    
+.PARAMETER SkipDotNet
+    This will disable the error checking for the .NET 3.5 and .NET 2.0 frameworks during the install process.
 
 .PARAMETER Force
     This will disable some of the error checking on the install process.
@@ -926,6 +938,10 @@ Function Install-LTService{
     Update Date: 3/13/2018
     Purpose/Change: Added -NoWait parameter.
     Added minimum size requirement for agent installer to detect and skip a bad file download.
+    
+    Update Date: 6/5/2018
+    Purpose/Change: Added -SkipDotNet parameter.
+    Allows for skipping of .NET 3.5 and 2.0 framework checks for installing on OS with .NET 4.0+ already installed
 
 .LINK
     http://labtechconsulting.com
@@ -948,6 +964,7 @@ Function Install-LTService{
         [AllowNull()]
         [string]$Rename,
         [switch]$Hide,
+        [switch]$SkipDotNet,
         [switch]$Force,
         [switch]$NoWait
     )
@@ -970,54 +987,57 @@ Function Install-LTService{
             Throw "Needs to be ran as Administrator" 
         }
 
-        $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
-        if (-not ($DotNet -like '3.5.*')){
-            Write-Output ".NET 3.5 installation needed."
-            #Install-WindowsFeature Net-Framework-Core
-            $OSVersion = [System.Environment]::OSVersion.Version
+        if (!$SkipDotNet){
 
-            if ([version]$OSVersion -gt [version]'6.2'){
-                try{
-                    If ( $PSCmdlet.ShouldProcess("NetFx3", "Enable-WindowsOptionalFeature") ) {
-                        $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
-                        if ($Install.RestartNeeded) {
-                            Write-Output ".NET 3.5 installed but a reboot is needed."
+            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
+            if (-not ($DotNet -like '3.5.*')){
+                Write-Output ".NET 3.5 installation needed."
+                #Install-WindowsFeature Net-Framework-Core
+                $OSVersion = [System.Environment]::OSVersion.Version
+
+                if ([version]$OSVersion -gt [version]'6.2'){
+                    try{
+                        If ( $PSCmdlet.ShouldProcess("NetFx3", "Enable-WindowsOptionalFeature") ) {
+                            $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
+                            if ($Install.RestartNeeded) {
+                                Write-Output ".NET 3.5 installed but a reboot is needed."
+                            }
                         }
                     }
-                }
-                catch{
-                    Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
-                    if (!($Force)) { Write-Error $Install -ErrorAction Stop }
-                }
-            }
-            Else{
-                If ( $PSCmdlet.ShouldProcess("NetFx3", "Add Windows Feature") ) {
-                    Try {$Result=& "$env:windir\system32\Dism.exe" /online /get-featureinfo /featurename:NetFx3 2>''} 
-                    Catch {Write-Output "Error calling Dism.exe."; $Result=$Null}
-                    If ($Result -contains "State : Enabled"){
-                        # also check reboot status, unsure of possible outputs
-                        # Restart Required : Possible 
-                        Write-Warning ".Net Framework 3.5 has been installed and enabled." 
-                    }
-                    Else { 
+                    catch{
                         Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
-                        If (!($Force)) { Write-Error $Result -ErrorAction Stop }
+                        if (!($Force)) { Write-Error $Install -ErrorAction Stop }
+                    }
+                }
+                Else{
+                    If ( $PSCmdlet.ShouldProcess("NetFx3", "Add Windows Feature") ) {
+                        Try {$Result=& "$env:windir\system32\Dism.exe" /online /get-featureinfo /featurename:NetFx3 2>''} 
+                        Catch {Write-Output "Error calling Dism.exe."; $Result=$Null}
+                        If ($Result -contains "State : Enabled"){
+                            # also check reboot status, unsure of possible outputs
+                            # Restart Required : Possible 
+                            Write-Warning ".Net Framework 3.5 has been installed and enabled." 
+                        }
+                        Else { 
+                            Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
+                            If (!($Force)) { Write-Error $Result -ErrorAction Stop }
+                        }#End If
                     }#End If
                 }#End If
+
+                $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version -EA 0 | Where-Object{ $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version
             }#End If
 
-            $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version -EA 0 | Where-Object{ $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version
-        }#End If
-
-        If (-not ($DotNet -like '3.5.*')){
-            If (($Force)) {
-                If ($DotNet -like '2.0.*'){
-                    Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Continue
+            If (-not ($DotNet -like '3.5.*')){
+                If (($Force)) {
+                    If ($DotNet -like '2.0.*'){
+                        Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Continue
+                    } Else {
+                        Write-Error "ERROR: .NET 2.0 is not detected and could not be installed." -ErrorAction Stop
+                    }#End If
                 } Else {
-                    Write-Error "ERROR: .NET 2.0 is not detected and could not be installed." -ErrorAction Stop
+                    Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
                 }#End If
-            } Else {
-                Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
             }#End If
         }#End If
 
