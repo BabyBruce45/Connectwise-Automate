@@ -11,7 +11,7 @@
     Tested Versions: v10.5, v11, v12
 
 .NOTES
-    Version:        1.4
+    Version:        1.5
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -29,13 +29,16 @@
     Update Date: 8/7/2018
     Purpose/Change: Added support for TLS 1.2
 
+    Update Date: 8/28/2018
+    Purpose/Change: Added Update-LTService function
+
 #>
 
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality.'}
 
 #Module Version
-$ModuleVersion = "1.4"
+$ModuleVersion = "1.5"
 
 If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
     Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
@@ -77,7 +80,7 @@ Function Get-LTServiceInfo{
     This function will pull all of the registry data into an object.
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -91,6 +94,9 @@ Function Get-LTServiceInfo{
 
     Update Date: 3/12/2018
     Purpose/Change: Support for ShouldProcess to enable -Confirm and -WhatIf.
+
+    Update Date: 8/28/2018
+    Purpose/Change: Remove '~' from server addresses.
 
 .LINK
     http://labtechconsulting.com
@@ -125,7 +131,7 @@ Function Get-LTServiceInfo{
                 }
                 $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0)) -replace '\\\\','\'
                 if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
-                    $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
+                    $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim() -replace '~',''}
                     Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
                 }#End If
             }#End Try
@@ -1486,16 +1492,20 @@ Function Update-LTService{
 
     .DESCRIPTION
         This script will attempt to pull current server settings from machine, then download and run the agent updater.
-        If the function is unable to find the settings it will ask for needed parameters. 
+
 
     .PARAMETER Version
         This is the agent version to install. 
         Example: 120.240
-        This is needed to download the update file.
+        This is needed to download the update file. If omitted, the version advertised by the server will be used.
 
     .EXAMPLE
         Update-LTService -Version 120.240
-        This will update the Automate agent using the server address in the registry.
+        This will update the Automate agent to the specific version requested, using the server address in the registry.
+
+    .EXAMPLE
+        Update-LTService
+        This will update the Automate agent to the current version advertised, using the server address in the registry.
 
     .NOTES
         Version:        1.0
@@ -1526,7 +1536,7 @@ Function Update-LTService{
         Process{
             if (-not ($Server)){
                 If ($Settings){
-                  $Server = ($Settings|Select-object -Expand 'Server' -EA 0) -replace '~',''
+                  $Server = $Settings|Select-object -Expand 'Server' -EA 0
                 }
             }
 
