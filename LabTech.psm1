@@ -1685,8 +1685,9 @@ Function Update-LTService{
                 return
             }#End Catch
 
-            If ($null -ne $?){
-                $($Error[0])
+            If ($WhatIfPreference -ne $True) {
+                If ($?) {}
+                Else {$Error[0]}
             }#End If
             Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
         }#End End
