@@ -1652,7 +1652,8 @@ Function Update-LTService{
                         #Extract Update Files
                         Write-Verbose "Launching LabtechUpdate Self-Extractor."
                         Write-Debug "Executing Command ""LabtechUpdate.exe $($xarg)"""
-                        Start-Process -Wait -FilePath "$updaterPath\LabtechUpdate.exe" -ArgumentList $xarg
+                        Try {& "$updaterPath\LabtechUpdate.exe" $($xarg) 2>''} 
+                        Catch {Write-Output "Error calling LabtechUpdate.exe."}
                         Start-Sleep -Seconds 5
                     } Else {
                         Write-Verbose "WARNING: $updaterPath\LabtechUpdate.exe was not found."
@@ -1664,7 +1665,8 @@ Function Update-LTService{
                         #Extract Update Files
                         Write-Verbose "Launching Labtech Updater"
                         Write-Debug "Executing Command ""Update.exe $($uarg)"""
-                        Start-Process -Wait -FilePath "$updaterPath\Update.exe" -ArgumentList $uarg
+                        Try {& "$updaterPath\Update.exe" $($uarg) 2>''} 
+                        Catch {Write-Output "Error calling Update.exe."}
                         Start-Sleep -Seconds 5
                     } Else {
                         Write-Verbose "WARNING: $updaterPath\Update.exe was not found."
