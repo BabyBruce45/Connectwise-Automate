@@ -1478,6 +1478,211 @@ Function Redo-LTService{
 #endregion Redo-LTService
 Set-Alias -Name ReInstall-LTService -Value Redo-LTService
 
+Function Update-LTService{
+    #region [Update-LTService]---------------------------------------------------
+    <#
+    .SYNOPSIS
+        This function will manually update the LabTech agent to the requested version.
+
+    .DESCRIPTION
+        This script will attempt to pull current server settings from machine, then download and run the agent updater.
+        If the function is unable to find the settings it will ask for needed parameters. 
+
+    .PARAMETER Version
+        This is the agent version to install. 
+        Example: 120.240
+        This is needed to download the update file.
+
+    .EXAMPLE
+        Update-LTService -Version 120.240
+        This will update the Automate agent using the server address in the registry.
+
+    .NOTES
+        Version:        1.0
+        Author:         Darren White
+        Creation Date:  8/28/2018
+        Purpose/Change: Initial function development
+
+    .LINK
+        http://labtechconsulting.com
+    #> 
+        [CmdletBinding(SupportsShouldProcess=$True)]
+        Param(
+            [parameter(Position=0)]
+            [AllowNull()]
+            [string]$Version
+        )
+
+        Begin{
+            Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+            Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
+            Clear-Variable Svr, GoodServer, Settings -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
+            $Settings = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False
+            $updaterPath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\_LTUpdate")
+            $xarg=@("/o""$updaterPath""","/y")
+            $uarg=@("""$updaterPath\Update.ini""")
+        }#End Begin
+
+        Process{
+            if (-not ($Server)){
+                If ($Settings){
+                  $Server = ($Settings|Select-object -Expand 'Server' -EA 0) -replace '~',''
+                }
+            }
+
+            Foreach ($Svr in $Server) {
+                If (-not ($GoodServer)) {
+                    If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                        If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
+                        Try {
+                            $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
+                            Write-Debug "Testing Server Response and Version: $SvrVerCheck"
+                            $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
+                            Write-Debug "Raw Response: $SvrVer"
+                            $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{1,3}\.[0-9]{1,3}'|ForEach-Object {$_.matches}|Select-Object -Expand value -EA 0
+                            If (($SVer) -eq $Null) {
+                                Write-Verbose "Unable to test version response from $($Svr)."
+                                Continue
+                            }
+                            If ($Version -match '[1-9][0-9]{2}\.[0-9]{3}') {
+                                $updater = "$($Svr)/Labtech/Updates/LabtechUpdate_$($Version).zip"
+                            } ElseIf ([System.Version]$SVer -ge [System.Version]'105.001') {
+                                $Version = $SVer
+                                Write-Verbose "Using detected version ($Version) from server: $($Svr)."
+                                $updater = "$($Svr)/Labtech/Updates/LabtechUpdate_$($Version).zip"
+                            }
+                            If (-not (Test-Path -PathType Container -Path "$updaterPath" )){
+                                New-Item "$updaterPath" -type directory -ErrorAction SilentlyContinue | Out-Null
+                            }#End if
+                            Try {
+                                $updaterTest = [System.Net.WebRequest]::Create($updater)
+                                If (($Script:LTProxy.Enabled) -eq $True) {
+                                    Write-Debug "Proxy Configuration Needed. Applying Proxy Settings to request."
+                                    $updaterTest.Proxy=$Script:LTWebProxy
+                                }#End If                        
+                                $updaterTest.KeepAlive=$False
+                                $updaterTest.ProtocolVersion = '1.0'
+                                $updaterResult = $updaterTest.GetResponse()
+                                $updaterTest.Abort()
+                                If ($updaterResult.StatusCode -ne 200) {
+                                    Write-Warning "Line $(LINENUM): Unable to download LabtechUpdate.exe version $Version from server $($Svr)."
+                                    Continue
+                                } Else {
+                                    If ( $PSCmdlet.ShouldProcess($updater, "DownloadFile") ) {
+                                        Write-Debug "Downloading LabtechUpdate.exe from $updater"
+                                        $Script:LTServiceNetWebClient.DownloadFile($updater,"$updaterPath\LabtechUpdate.exe")
+                                        If((Test-Path "$updaterPath\LabtechUpdate.exe") -and  !((Get-Item "$updaterPath\LabtechUpdate.exe" -EA 0).length/1KB -gt 1234)) {
+                                            Write-Warning "Line $(LINENUM): LabtechUpdate.exe size is below normal. Removing suspected corrupt file."
+                                            Remove-Item "$updaterPath\LabtechUpdate.exe" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                            Continue
+                                        }#End If
+                                    }#End If
+        
+                                    If ($WhatIfPreference -eq $True) {
+                                        $GoodServer = $Svr
+                                    } ElseIf (Test-Path "$updaterPath\LabtechUpdate.exe") {
+                                        $GoodServer = $Svr
+                                        Write-Verbose "LabtechUpdate.exe downloaded successfully from server $($Svr)."
+                                    } Else {
+                                        Write-Warning "Line $(LINENUM): Error encountered downloading from $($Svr). No update file was received."
+                                        Continue
+                                    }#End If
+                                }#End If
+                            }#End Try
+                            Catch {
+                                Write-Warning "Line $(LINENUM): Error encountered downloading $updater."
+                                Continue
+                            }
+                        }#End Try
+                        Catch {
+                            Write-Warning "Line $(LINENUM): Error encountered downloading from $($Svr)."
+                            Continue
+                        }
+                    } Else {
+                        Write-Warning "Line $(LINENUM): Server address $($Svr) is not formatted correctly. Example: https://lt.domain.com"
+                    }
+                } Else {
+                    Write-Debug "Server $($GoodServer) has been selected."
+                    Write-Verbose "Server has already been selected - Skipping $($Svr)."
+                }
+            }#End Foreach
+        }#End Process
+
+        End{
+            $detectedVersion = $Settings|Select-object -Expand 'Version' -EA 0
+            If ($Null -eq $detectedVersion){
+                Write-Error "ERROR: Line $(LINENUM): No existing installation was found." -ErrorAction Stop
+                Return
+            }
+            If ([System.Version]$detectedVersion -ge [System.Version]$Version) {
+                Write-Warning "Line $(LINENUM): Installed version detected ($detectedVersion) is higher than or equal to the requested version ($Version)."
+                Return
+            }
+            If (-not ($GoodServer)) {
+                Write-Warning "Line $(LINENUM): No valid server was detected."
+                Return
+            }
+            If ([System.Version]$SVer -gt [System.Version]$Version) {
+                Write-Warning "Line $(LINENUM): Server version detected ($SVer) is higher than the requested version ($Version)."
+                Return
+            }
+
+            Try{
+                Stop-LTService
+            }#End Try
+            Catch{
+                Write-Error "ERROR: Line $(LINENUM): There was an error stopping the services. $($Error[0])"
+                return
+            }#End Catch
+    
+            Write-Output "Updating Agent with the following information: Server $($GoodServer), Version $Version"
+            Try{
+                If ($PSCmdlet.ShouldProcess("LabtechUpdate.exe $($xarg)", "Extracting update files")) {
+                    If ((Test-Path "$updaterPath\LabtechUpdate.exe")) {
+                        #Extract Update Files
+                        Write-Verbose "Launching LabtechUpdate Self-Extractor."
+                        Write-Debug "Executing Command ""LabtechUpdate.exe $($xarg)"""
+                        Start-Process -Wait -FilePath "$updaterPath\LabtechUpdate.exe" -ArgumentList $xarg
+                        Start-Sleep -Seconds 5
+                    } Else {
+                        Write-Verbose "WARNING: $updaterPath\LabtechUpdate.exe was not found."
+                    }
+                }#End If
+
+                If ($PSCmdlet.ShouldProcess("Update.exe $($uarg)", "Launching Updater")) {
+                    If ((Test-Path "$updaterPath\Update.exe")) {
+                        #Extract Update Files
+                        Write-Verbose "Launching Labtech Updater"
+                        Write-Debug "Executing Command ""Update.exe $($uarg)"""
+                        Start-Process -Wait -FilePath "$updaterPath\Update.exe" -ArgumentList $uarg
+                        Start-Sleep -Seconds 5
+                    } Else {
+                        Write-Verbose "WARNING: $updaterPath\Update.exe was not found."
+                    }
+                }#End If
+
+            }#End Try
+    
+            Catch{
+                Write-Error "ERROR: Line $(LINENUM): There was an error during the update process $($Error[0])" -ErrorAction Continue
+            }#End Catch
+    
+            Try{
+                Start-LTService
+            }#End Try
+            Catch{
+                Write-Error "ERROR: Line $(LINENUM): There was an error starting the services. $($Error[0])"
+                return
+            }#End Catch
+
+            If ($null -ne $?){
+                $($Error[0])
+            }#End If
+            Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
+        }#End End
+    }#End Function Update-LTService
+    #endregion Update-LTService
+
 Function Get-LTError{
 #region [Get-LTError]-----------------------------------------------------------
 <#
@@ -3229,6 +3434,12 @@ Function Get-LTProxy{
 }#End Function Get-LTProxy
 #endregion Get-LTProxy
 
+Function Get-CurrentLineNumber {
+#region [Get-CurrentLineNumber]--------------------------------------------
+    $MyInvocation.ScriptLineNumber
+}
+#endregion Get-CurrentLineNumber
+
 Function Initialize-LTServiceModule{
 #region [Initialize-LTServiceModule]--------------------------------------------
 <#
@@ -3307,6 +3518,7 @@ Start-LTService
 Stop-LTService
 Test-LTPorts
 Uninstall-LTService
+Update-LTService
 "@) -replace "[`r`n,\s]+",',') -split ',')
 
 $PublicAlias=@(((@"
