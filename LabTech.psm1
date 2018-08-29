@@ -1561,10 +1561,25 @@ Function Update-LTService{
                                 Write-Verbose "Using detected version ($Version) from server: $($Svr)."
                                 $updater = "$($Svr)/Labtech/Updates/LabtechUpdate_$($Version).zip"
                             }
-                            If (-not (Test-Path -PathType Container -Path "$updaterPath" )){
-                                New-Item "$updaterPath" -type directory -ErrorAction SilentlyContinue | Out-Null
-                            }#End if
+
+                            #Remove $updaterPath - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
+                            @("$updaterPath") | foreach-object {
+                                If ((Test-Path "$($_)" -EA 0)) {
+                                    If ( $PSCmdlet.ShouldProcess("$($_)","Remove Folder") ) {
+                                        Write-Debug "Removing Folder: $($_)"
+                                        Try {
+                                            Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.psiscontainer) } | foreach-object { Get-ChildItem -Path "$($_.FullName)" -EA 0 | Where-Object { -not ($_.psiscontainer) } | Remove-Item -Force -ErrorAction SilentlyContinue -Confirm:$False -WhatIf:$False }
+                                            Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.psiscontainer) } | Sort-Object { $_.fullname.length } -Descending | Remove-Item -Force -ErrorAction SilentlyContinue -Recurse -Confirm:$False -WhatIf:$False
+                                            Remove-Item -Recurse -Force -Path $_ -ErrorAction SilentlyContinue -Confirm:$False -WhatIf:$False
+                                        } Catch {}
+                                    }#End If
+                                }#End If
+                            }#End Foreach-Object
+            
                             Try {
+                                If (-not (Test-Path -PathType Container -Path "$updaterPath" )){
+                                    New-Item "$updaterPath" -type directory -ErrorAction SilentlyContinue | Out-Null
+                                }#End if
                                 $updaterTest = [System.Net.WebRequest]::Create($updater)
                                 If (($Script:LTProxy.Enabled) -eq $True) {
                                     Write-Debug "Proxy Configuration Needed. Applying Proxy Settings to request."
