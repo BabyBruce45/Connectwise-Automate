@@ -1562,6 +1562,18 @@ Function Update-LTService{
                                 $updater = "$($Svr)/Labtech/Updates/LabtechUpdate_$($Version).zip"
                             }
 
+                            #Kill all running processes from $updaterPath
+                            if (Test-Path $updaterPath){
+                                $Executables = (Get-ChildItem $updaterPath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand FullName)
+                                if ($Executables) {
+                                    Write-Verbose "Terminating LabTech Processes from $($updaterPath) if found running: $(($Executables) -replace [Regex]::Escape($updaterPath),'' -replace '^\\','')"
+                                    Get-Process | Where-Object {$Executables -contains $_.Path } | ForEach-Object {
+                                        Write-Debug "Terminating Process $($_.ProcessName)"
+                                        $($_) | Stop-Process -Force -ErrorAction SilentlyContinue
+                                    }
+                                }
+                            }#End If
+
                             #Remove $updaterPath - Depth First Removal, First by purging files, then Removing Folders, to get as much removed as possible if complete removal fails
                             @("$updaterPath") | foreach-object {
                                 If ((Test-Path "$($_)" -EA 0)) {
@@ -1667,7 +1679,11 @@ Function Update-LTService{
                         #Extract Update Files
                         Write-Verbose "Launching LabtechUpdate Self-Extractor."
                         Write-Debug "Executing Command ""LabtechUpdate.exe $($xarg)"""
-                        Try {& "$updaterPath\LabtechUpdate.exe" $($xarg) 2>''} 
+                        Try {
+                            Push-Location $updaterPath
+                            & "$updaterPath\LabtechUpdate.exe" $($xarg) 2>''
+                            Pop-Location
+                        } 
                         Catch {Write-Output "Error calling LabtechUpdate.exe."}
                         Start-Sleep -Seconds 5
                     } Else {
