@@ -774,7 +774,7 @@ Function Uninstall-LTService{
                         #Run MSI uninstaller for current installation
                         Write-Verbose "Launching MSI Uninstall."
                         Write-Debug "Executing Command ""msiexec.exe $($xarg)"""
-                        Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $xarg
+                        Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $xarg -WorkingDirectory $env:TEMP
                         Start-Sleep -Seconds 5
                     } Else {
                         Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
@@ -786,7 +786,7 @@ Function Uninstall-LTService{
                         #Run Agent_Uninstall.exe
                         Write-Verbose "Launching Agent Uninstaller"
                         Write-Debug "Executing Command ""$($env:windir)\temp\Agent_Uninstall.exe"""
-                        Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe"
+                        Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe" -WorkingDirectory $env:TEMP
                         Start-Sleep -Seconds 5
                     } Else {
                         Write-Verbose "WARNING: $($env:windir)\temp\Agent_Uninstall.exe was not found."
@@ -1192,7 +1192,7 @@ Function Install-LTService{
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
                         If ($svcRun -eq 0) {
                             Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
-                            Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $iarg
+                            Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $iarg -WorkingDirectory $env:TEMP
                             Start-Sleep 5
                         }
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
