@@ -725,7 +725,7 @@ Function Uninstall-LTService{
                             If ($PSCmdlet.ShouldProcess("$uninstaller", "DownloadFile")) {
                                 Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                                 $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
-                                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe") -and !((Get-Item "$($env:windir)\temp\Agent_Uninstall.exe" -EA 0).length/1KB -gt 256)) {
+                                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe") -and !((Get-Item "$($env:windir)\temp\Agent_Uninstall.exe" -EA 0).length/1KB -gt 80)) {
                                     Write-Warning "Line $(LINENUM): Agent_Uninstall.exe size is below normal. Removing suspected corrupt file."
                                     Remove-Item "$($env:windir)\temp\Agent_Uninstall.exe" -ErrorAction SilentlyContinue -Force -Confirm:$False
                                     Continue
