@@ -74,7 +74,6 @@ IF([Net.SecurityProtocolType]::Tls12) {[Net.ServicePointManager]::SecurityProtoc
 #region [Functions]-------------------------------------------------------------
 
 Function Get-LTServiceInfo{ 
-#region [Get-LTServiceInfo]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will pull all of the registry data into an object.
@@ -151,10 +150,8 @@ Function Get-LTServiceInfo{
         }
     }#End End
 }#End Function Get-LTServiceInfo
-#endregion Get-LTServiceInfo
 
 Function Get-LTServiceSettings{ 
-#region [Get-LTServiceSettings]-------------------------------------------------
 <#
 .SYNOPSIS
     This function will pull the registry data from HKLM:\SOFTWARE\LabTech\Service\Settings into an object.
@@ -199,10 +196,8 @@ Function Get-LTServiceSettings{
     }    
   }#End End
 }#End Function Get-LTServiceSettings
-#endregion LTServiceSettings
 
 Function Restart-LTService{
-#region [Restart-LTService]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will restart the LabTech Services.
@@ -268,10 +263,8 @@ Function Restart-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Restart-LTService
-#endregion Restart-LTService
 
 Function Stop-LTService{
-#region [Stop-LTService]--------------------------------------------------------
 <#
 .SYNOPSIS
     This function will stop the LabTech Services.
@@ -361,10 +354,8 @@ Function Stop-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Stop-LTService
-#endregion Stop-LTService
 
 Function Start-LTService{
-#region [Start-LTService]-------------------------------------------------------
 <#
 .SYNOPSIS
     This function will start the LabTech Services.
@@ -494,10 +485,8 @@ Function Start-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Start-LTService
-#endregion Start-LTService
 
 Function Uninstall-LTService{
-#region [Uninstall-LTService]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will uninstall the LabTech agent from the machine.
@@ -860,10 +849,8 @@ Function Uninstall-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Uninstall-LTService
-#endregion Uninstall-LTService
 
 Function Install-LTService{
-#region [Install-LTService]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will install the LabTech agent on the machine.
@@ -886,7 +873,7 @@ Function Install-LTService{
     (Get-LTServiceInfo).LocationID
 
 .PARAMETER TrayPort
-    This is the port LTSvc.exe listens on for communication with LTTray processess.
+    This is the port LTSvc.exe listens on for communication with LTTray processes.
 
 .PARAMETER Rename
     This will call Rename-LTAddRemove after the install.
@@ -1279,10 +1266,8 @@ Function Install-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Install-LTService
-#endregion Install-LTService
 
 Function Redo-LTService{
-#region [Redo-LTService]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will reinstall the LabTech agent from the machine.
@@ -1481,11 +1466,9 @@ Function Redo-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Redo-LTService
-#endregion Redo-LTService
 Set-Alias -Name ReInstall-LTService -Value Redo-LTService
 
 Function Update-LTService{
-    #region [Update-LTService]---------------------------------------------------
     <#
     .SYNOPSIS
         This function will manually update the LabTech agent to the requested version.
@@ -1725,10 +1708,8 @@ Function Update-LTService{
             Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
         }#End End
     }#End Function Update-LTService
-    #endregion Update-LTService
 
 Function Get-LTError{
-#region [Get-LTError]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This will pull the %ltsvcdir%\LTErrors.txt file into an object.
@@ -1797,10 +1778,8 @@ Function Get-LTError{
         Else {$Error[0]}
     }#End End
 }#End Function Get-LTError
-#endregion Get-LTError
 
 Function Reset-LTService{
-#region [Reset-LTService]-------------------------------------------------------
 <#
 .SYNOPSIS
     This function will remove local settings on the agent.
@@ -1871,7 +1850,7 @@ Function Reset-LTService{
         Write-Debug "Starting $($myInvocation.InvocationName)"
 
         $Reg = 'HKLM:\Software\LabTech\Service'
-        If (!($ID -or $LocationID -or $MAC)){
+        If (!($ID -and $LocationID -and $MAC)){
             $ID=$True
             $Location=$True
             $MAC=$True
@@ -1946,10 +1925,8 @@ Function Reset-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Reset-LTService
-#endregion Reset-LTService
 
 Function Hide-LTAddRemove{
-#region [Hide-LTAddRemove]------------------------------------------------------
 <#
 .SYNOPSIS
     This function hides the LabTech install from the Add/Remove Programs list.
@@ -2053,10 +2030,8 @@ Function Hide-LTAddRemove{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Hide-LTAddRemove
-#endregion Hide-LTAddRemove
 
 Function Show-LTAddRemove{
-#region [Show-LTAddRemove]------------------------------------------------------
 <#
 .SYNOPSIS
     This function shows the LabTech install in the add/remove programs list.
@@ -2161,10 +2136,8 @@ Function Show-LTAddRemove{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Show-LTAddRemove
-#endregion Show-LTAddRemove
 
 Function Test-LTPorts{
-#region [Test-LTPorts]----------------------------------------------------------
 <#
 .SYNOPSIS
     This function will attempt to connect to all required TCP ports.
@@ -2347,10 +2320,8 @@ Function Test-LTPorts{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Test-LTPorts
-#endregion Test-LTPorts
 
 Function Get-LTLogging{
-#region [Get-LTLogging]---------------------------------------------------- ----
 <#
 .SYNOPSIS
     This function will return the logging level of the LabTech service.
@@ -2403,10 +2374,8 @@ Function Get-LTLogging{
     }    
   }#End End
 }#End Function Get-LTLogging
-#endregion Get-LTLogging
 
 Function Set-LTLogging{
-#region [Set-LTLogging]---------------------------------------------------- ----
 <#
 .SYNOPSIS
         This function will set the logging level of the LabTech service.
@@ -2458,10 +2427,8 @@ Function Set-LTLogging{
     }    
   }#End End
 }#End Function Set-LTLogging
-#endregion Set-LTLogging
 
 Function Get-LTProbeErrors{
-#region [Get-LTProbeErrors]-----------------------------------------------------
 <#
 .SYNOPSIS
     This will pull the %ltsvcdir%\LTProbeErrors.txt file into an object.
@@ -2522,10 +2489,8 @@ Function Get-LTProbeErrors{
         
     }#End End
 }#End Function Get-LTProbeErrors
-#endregion Get-LTProbeErrors
 
 Function New-LTServiceBackup{
-#region [New-LTServiceBackup]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTechBackup'
@@ -2617,10 +2582,8 @@ Function New-LTServiceBackup{
     Write-Debug "Exiting $($myInvocation.InvocationName)"
   }#End End
 }#End Function New-LTServiceBackup
-#endregion New-LTServiceBackup
 
 Function Get-LTServiceInfoBackup{
-#region [Get-LTServiceInfoBackup]-----------------------------------------------
 <#
 .SYNOPSIS
     This function will pull all of the backed up registry data into an object.
@@ -2676,10 +2639,8 @@ Function Get-LTServiceInfoBackup{
         }    
     }#End End
 }#End Function Get-LTServiceInfoBackup
-#endregion Get-LTServiceInfoBackup
 
 Function Rename-LTAddRemove{
-#region [Rename-LTAddRemove]----------------------------------------------------
 <#
 .SYNOPSIS
     This function renames the LabTech install as shown in the Add/Remove Programs list.
@@ -2791,10 +2752,8 @@ Function Rename-LTAddRemove{
         }#End If
     }#End End
 }#End Function Rename-LTAddRemove
-#endregion Rename-LTAddRemove
 
 Function Invoke-LTServiceCommand {
-#region [Invoke-LTServiceCommand]--------------------------------------------------
 <#
 .SYNOPSIS
     This function tells the agent to execute the desired command.
@@ -2896,10 +2855,8 @@ Function Invoke-LTServiceCommand {
     End{}
 
 } # End Function Invoke-LTServiceCommand
-#endregion Invoke-LTServiceCommand
 
 Function Initialize-LTServiceKeys{
-#region [Initialize-LTServiceKeys]--------------------------------------------------------
 <#
 .SYNOPSIS
     This function initializes internal variables needed by other functions
@@ -2944,10 +2901,8 @@ Function Initialize-LTServiceKeys{
     End {
     }#End End
 }#End Function Initialize-LTServiceKeys
-#endregion Initialize-LTServiceKeys
 
 Function ConvertFrom-LTSecurity{
-#region [ConvertFrom-LTSecurity]----------------------------------------------------
 <#
 .SYNOPSIS
     This function decodes an encoded Base64 value
@@ -3054,10 +3009,8 @@ Param(
    }#End End
 
 }#End Function ConvertFrom-LTSecurity
-#endregion ConvertFrom-LTSecurity
 
 Function ConvertTo-LTSecurity{
-#region [ConvertTo-LTSecurity]----------------------------------------------------
 <#
 .SYNOPSIS
     This function encodes a value compatible with LT operations.
@@ -3127,10 +3080,8 @@ Param(
         return $str
     }#End Begin
 }#End Function ConvertTo-LTSecurity
-#endregion ConvertTo-LTSecurity
 
 Function Set-LTProxy{
-#region [Set-LTProxy]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This function configures module functions to use the specified proxy 
@@ -3391,10 +3342,8 @@ Function Set-LTProxy{
     }#End End
 
 }#End Function Set-LTProxy
-#endregion Set-LTProxy
 
 Function Get-LTProxy{
-#region [Get-LTProxy]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This function retrieves the current agent proxy settings for module functions
@@ -3476,16 +3425,12 @@ Function Get-LTProxy{
         return $Script:LTProxy
     }#End End
 }#End Function Get-LTProxy
-#endregion Get-LTProxy
 
 Function Get-CurrentLineNumber {
-#region [Get-CurrentLineNumber]--------------------------------------------
     $MyInvocation.ScriptLineNumber
 }
-#endregion Get-CurrentLineNumber
 
 Function Initialize-LTServiceModule{
-#region [Initialize-LTServiceModule]--------------------------------------------
 <#
 .SYNOPSIS
     This function initializes internal variables needed by other functions
@@ -3533,7 +3478,6 @@ Function Initialize-LTServiceModule{
     $Null=Get-LTProxy -ErrorAction Continue
 
 }#End Initialize-LTServiceModule
-#endregion Initialize-LTServiceModule
 
 #endregion Functions
 
