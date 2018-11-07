@@ -516,7 +516,7 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.5
+    Version:        1.6
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -543,6 +543,10 @@ Function Uninstall-LTService{
     Updated support of -WhatIf parameter.
     Added minimum size requirement for agent installer to detect and skip a bad file download.
 
+    Update Date: 10/18/2018
+    Purpose/Change: Added minimum size requirement for agent uninstaller exe to detect and skip a bad file download. 
+    Uninstall will proceed even if the agent uninstaller exe cannot be downloaded.
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -557,11 +561,12 @@ Function Uninstall-LTService{
     )
 
     Begin{
-        Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,LTSI,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
+        Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,LTSI,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,AlternateServer,Item -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
-            Throw "Needs to be ran as Administrator" 
+            Throw "Line $(LINENUM): Needs to be ran as Administrator" 
         }
 
         $LTSI = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
@@ -569,7 +574,7 @@ Function Uninstall-LTService{
             If ($Force -eq $True) {
                 Write-Output "Probe Agent Detected. UnInstall Forced."
             } Else {
-                Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. UnInstall Denied." -ErrorAction Stop
+                Write-Error -Exception [System.OperationCanceledException]"Line $(LINENUM): Probe Agent Detected. UnInstall Denied." -ErrorAction Stop
             }#End If
         }#End If
 
@@ -644,14 +649,14 @@ Function Uninstall-LTService{
 
                         Write-Debug "Raw Response: $SvrVer"
                         $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{1,3}\.[0-9]{1,3}'|ForEach-Object {$_.matches}|Select-Object -Expand value -EA 0
-                        If (($SVer) -eq $Null) {
+                        If ($Null -eq ($SVer)) {
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                        If ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
-                        } else {
+                        } Else {
                             #Original Generic Installer URL - Yes, these both reference Location 1 and are thus the same. Will it change in Patch 14? This section is now ready.
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
                         }
@@ -665,26 +670,30 @@ Function Uninstall-LTService{
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
                         If ($installerResult.StatusCode -ne 200) {
-                            Write-Warning "Unable to download Agent_Install.msi from server $($Svr)."
+                            Write-Warning "Line $(LINENUM): Unable to download Agent_Install.msi from server $($Svr)."
                             Continue
                         }
-                        Else{
+                        Else {
                             If ($PSCmdlet.ShouldProcess("$installer", "DownloadFile")) {
                                 Write-Debug "Downloading Agent_Install.msi from $installer"
                                 $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-                                If((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and  !((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
-                                    Write-Warning "Agent_Install.msi size is below normal. Removing suspected corrupt file."
-                                    Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
-                                    Continue
+                                If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi")) {
+                                    If (!((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
+                                        Write-Warning "Line $(LINENUM): Agent_Install.msi size is below normal. Removing suspected corrupt file."
+                                        Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                        Continue
+                                    } Else {
+                                        $AlternateServer = $Svr
+                                    }#End If
                                 }#End If
                             }#End If
                         }#End If
 
                         #Using $SVer results gathered above.
-                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                        If ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - The Agent Uninstaller URI has changed.
                             $uninstaller = "$($Svr)/Labtech/Deployment.aspx?ID=-2"
-                        } else {
+                        } Else {
                             #Original Uninstaller URL
                             $uninstaller = "$($Svr)/Labtech/Deployment.aspx?probe=1&ID=-2"
                         }
@@ -698,14 +707,19 @@ Function Uninstall-LTService{
                         $uninstallerResult = $uninstallerTest.GetResponse()
                         $uninstallerTest.Abort()
                         If ($uninstallerResult.StatusCode -ne 200) {
-                            Write-Warning "Unable to download Agent_Uninstall from server."
+                            Write-Warning "Line $(LINENUM): Unable to download Agent_Uninstall from server."
                             Continue
                         } Else {
                             #Download Agent_Uninstall.exe
                             If ($PSCmdlet.ShouldProcess("$uninstaller", "DownloadFile")) {
                                 Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                                 $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
-                            }
+                                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe") -and !((Get-Item "$($env:windir)\temp\Agent_Uninstall.exe" -EA 0).length/1KB -gt 80)) {
+                                    Write-Warning "Line $(LINENUM): Agent_Uninstall.exe size is below normal. Removing suspected corrupt file."
+                                    Remove-Item "$($env:windir)\temp\Agent_Uninstall.exe" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                    Continue
+                                }#End If
+                            }#End If
                         }#End If
                         If ($WhatIfPreference -eq $True) {
                             $GoodServer = $Svr
@@ -713,12 +727,12 @@ Function Uninstall-LTService{
                             $GoodServer = $Svr
                             Write-Verbose "Successfully downloaded files from $($Svr)."
                         } Else {
-                            Write-Warning "Error encountered downloading from $($Svr). Uninstall file(s) could not be received."
+                            Write-Warning "Line $(LINENUM): Error encountered downloading from $($Svr). Uninstall file(s) could not be received."
                             Continue
                         }#End If
                     }#End Try
                     Catch {
-                        Write-Warning "Error encountered downloading from $($Svr)."
+                        Write-Warning "Line $(LINENUM): Error encountered downloading from $($Svr)."
                         Continue
                     }
                 } Else {
@@ -732,30 +746,30 @@ Function Uninstall-LTService{
     }#End Process
 
     End{
-        if ($GoodServer) {
+        If ($GoodServer -match 'https?://.+' -or $AlternateServer -match 'https?://.+') {
             Try{
                 Write-Output "Starting Uninstall."
 
-                try { Stop-LTService -ErrorAction SilentlyContinue } catch {}
+                Try { Stop-LTService -ErrorAction SilentlyContinue } Catch {}
 
                 #Kill all running processes from %ltsvcdir%   
-                if (Test-Path $BasePath){
+                If (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand FullName)
-                    if ($Executables) {
+                    If ($Executables) {
                         Write-Verbose "Terminating LabTech Processes from $($BasePath) if found running: $(($Executables) -replace [Regex]::Escape($BasePath),'' -replace '^\\','')"
                         Get-Process | Where-Object {$Executables -contains $_.Path } | ForEach-Object {
                             Write-Debug "Terminating Process $($_.ProcessName)"
                             $($_) | Stop-Process -Force -ErrorAction SilentlyContinue
                         }
                         Get-ChildItem $BasePath -Filter labvnc.exe -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction 0
-                    }
+                    }#End If
 
                     If ($PSCmdlet.ShouldProcess("$($BasePath)\wodVPN.dll", "Unregister DLL")) {
                         #Unregister DLL
                         Write-Debug "Executing Command ""regsvr32.exe /u $($BasePath)\wodVPN.dll /s"""
                         Try {& "$env:windir\system32\regsvr32.exe" /u "$($BasePath)\wodVPN.dll" /s 2>''} 
                         Catch {Write-Output "Error calling regsvr32.exe."}
-                    }
+                    }#End If
                 }#End If
 
                 If ($PSCmdlet.ShouldProcess("msiexec.exe $($xarg)", "Execute MSI Uninstall")) {
@@ -790,7 +804,7 @@ Function Uninstall-LTService{
                             Write-Debug "Removing Service: $($_)"
                             Try {& "$env:windir\system32\sc.exe" delete "$($_)" 2>''} 
                             Catch {Write-Output "Error calling sc.exe."}
-                            }#End If
+                        }#End If
                     }#End If
                 }#End ForEach-Object
 
@@ -811,7 +825,7 @@ Function Uninstall-LTService{
 
                 Write-Verbose "Cleaning Registry Keys if found."
                 #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
-                foreach ($reg in $regs) {
+                Foreach ($reg in $regs) {
                     If ((Test-Path "$($reg)" -EA 0)) {
                         Write-Debug "Found Registry Key: $($reg)"
                         If ( $PSCmdlet.ShouldProcess("$($Reg)","Remove Registry Key") ) {
@@ -825,7 +839,7 @@ Function Uninstall-LTService{
             }#End Try
 
             Catch{
-                Write-Error "ERROR: There was an error during the uninstall process. $($Error[0])" -ErrorAction Stop
+                Write-Error "ERROR: Line $(LINENUM): There was an error during the uninstall process. $($Error[0])" -ErrorAction Stop
             }#End Catch
 
             If ($WhatIfPreference -ne $True) {
@@ -835,7 +849,7 @@ Function Uninstall-LTService{
                         Start-Sleep -Seconds 10
                     }#End If
                     If((Test-Path "$env:windir\ltsvc") -or (Test-Path "$env:windir\temp\_ltudpate") -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
-                        Write-Error "Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
+                        Write-Error "Line $(LINENUM): Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
                     } Else {
                         Write-Output "LabTech has been successfully uninstalled."
                     }#End If
@@ -844,9 +858,9 @@ Function Uninstall-LTService{
                 }#End If
             }#End If
         } ElseIf ($WhatIfPreference -ne $True) {
-            Write-Error "ERROR: No valid server was reached to use for the uninstall." -ErrorAction Stop
+            Write-Error "ERROR: Line $(LINENUM): No valid server was reached to use for the uninstall." -ErrorAction Stop
         }#End If
-        Write-Debug "Exiting $($myInvocation.InvocationName)"
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Uninstall-LTService
 
@@ -1533,7 +1547,7 @@ Function Update-LTService{
                             $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
                             Write-Debug "Raw Response: $SvrVer"
                             $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{1,3}\.[0-9]{1,3}'|ForEach-Object {$_.matches}|Select-Object -Expand value -EA 0
-                            If (($SVer) -eq $Null) {
+                            If ($Null -eq ($SVer)) {
                                 Write-Verbose "Unable to test version response from $($Svr)."
                                 Continue
                             }
