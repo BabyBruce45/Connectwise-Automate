@@ -79,7 +79,7 @@ Function Get-LTServiceInfo{
     This function will pull all of the registry data into an object.
 
 .NOTES
-    Version:        1.4
+    Version:        1.5
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -97,6 +97,9 @@ Function Get-LTServiceInfo{
     Update Date: 8/28/2018
     Purpose/Change: Remove '~' from server addresses.
 
+    Update Date: 1/19/2019
+    Purpose/Change: Improved BasePath value assignment
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -104,50 +107,55 @@ Function Get-LTServiceInfo{
     Param ()
 
     Begin{
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         Clear-Variable key,BasePath,exclude,Servers -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
         $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
         $key = $Null
     }#End Begin
 
     Process{
-        if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
-            Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed."
+        If ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
+            Write-Error "ERROR: Line $(LINENUM): Unable to find information on LTSvc. Make sure the agent is installed."
             Return $Null
-        }
+        }#End If
 
         If ($PSCmdlet.ShouldProcess("LTService", "Retrieving Service Registry Values")) {
             Write-Verbose "Checking for LT Service registry keys."
             Try{
-                $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select-Object * -exclude $exclude
-                if (($key) -ne $Null -and -not ($key|Get-Member -EA 0|Where-Object {$_.Name -match 'BasePath'})) {
-                    if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
-                        $BasePath = (Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop|Select-object -Expand ImagePath -EA 0).Split('"')|Where-Object {$_}|Select-Object -First 1|Get-Item|Select-object -Expand DirectoryName -EA 0
+                $key = Get-ItemProperty 'HKLM:\SOFTWARE\LabTech\Service' -ErrorAction Stop | Select-Object * -exclude $exclude
+                If ($Null -ne $key -and -not ($key|Get-Member -EA 0|Where-Object {$_.Name -match 'BasePath'})) {
+                    If ((Test-Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LTService') -eq $True) {
+                        Try {
+                            $BasePath = Get-Item $( Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\LTService' -ErrorAction Stop|Select-object -Expand ImagePath | Select-String -Pattern '^[^"][^ ]+|(?<=^")[^"]+'|Select-Object -Expand Matches -First 1 | Select-Object -Expand Value -EA 0 -First 1 ) | Select-Object -Expand DirectoryName -EA 0
+                        } Catch {
+                            $BasePath = "${env:windir}\LTSVC" 
+                        }#End Try
                     } Else {
-                        $BasePath = "$env:windir\LTSVC" 
-                    }
+                        $BasePath = "${env:windir}\LTSVC" 
+                    }#End If
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
-                }
+                }#End If
                 $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0)) -replace '\\\\','\'
-                if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+                If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
                     $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim() -replace '~',''}
                     Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
                 }#End If
             }#End Try
             
             Catch{
-                Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])"
+                Write-Error "ERROR: Line $(LINENUM): There was a problem reading the registry keys. $($Error[0])"
             }#End Catch
         }#End If
     }#End Process
 
     End{
         If ($?){
-            Write-Debug "Exiting $($myInvocation.InvocationName)"
+            Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
             return $key
         } Else {
-            Write-Debug "Exiting $($myInvocation.InvocationName)"
-        }
+            Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
+        }#End If
     }#End End
 }#End Function Get-LTServiceInfo
 
