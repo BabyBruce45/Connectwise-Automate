@@ -79,7 +79,7 @@ Function Get-LTServiceInfo{
     This function will pull all of the registry data into an object.
 
 .NOTES
-    Version:        1.4
+    Version:        1.5
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -97,6 +97,9 @@ Function Get-LTServiceInfo{
     Update Date: 8/28/2018
     Purpose/Change: Remove '~' from server addresses.
 
+    Update Date: 1/19/2019
+    Purpose/Change: Improved BasePath value assignment
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -104,50 +107,55 @@ Function Get-LTServiceInfo{
     Param ()
 
     Begin{
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         Clear-Variable key,BasePath,exclude,Servers -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
         $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
         $key = $Null
     }#End Begin
 
     Process{
-        if ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
-            Write-Error "ERROR: Unable to find information on LTSvc. Make sure the agent is installed."
+        If ((Test-Path 'HKLM:\SOFTWARE\LabTech\Service') -eq $False){
+            Write-Error "ERROR: Line $(LINENUM): Unable to find information on LTSvc. Make sure the agent is installed."
             Return $Null
-        }
+        }#End If
 
         If ($PSCmdlet.ShouldProcess("LTService", "Retrieving Service Registry Values")) {
             Write-Verbose "Checking for LT Service registry keys."
             Try{
-                $key = Get-ItemProperty HKLM:\SOFTWARE\LabTech\Service -ErrorAction Stop | Select-Object * -exclude $exclude
-                if (($key) -ne $Null -and -not ($key|Get-Member -EA 0|Where-Object {$_.Name -match 'BasePath'})) {
-                    if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\LTService) {
-                        $BasePath = (Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LTService -ErrorAction Stop|Select-object -Expand ImagePath -EA 0).Split('"')|Where-Object {$_}|Select-Object -First 1|Get-Item|Select-object -Expand DirectoryName -EA 0
+                $key = Get-ItemProperty 'HKLM:\SOFTWARE\LabTech\Service' -ErrorAction Stop | Select-Object * -exclude $exclude
+                If ($Null -ne $key -and -not ($key|Get-Member -EA 0|Where-Object {$_.Name -match 'BasePath'})) {
+                    If ((Test-Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LTService') -eq $True) {
+                        Try {
+                            $BasePath = Get-Item $( Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\LTService' -ErrorAction Stop|Select-Object -Expand ImagePath | Select-String -Pattern '^[^"][^ ]+|(?<=^")[^"]+'|Select-Object -Expand Matches -First 1 | Select-Object -Expand Value -EA 0 -First 1 ) | Select-Object -Expand DirectoryName -EA 0
+                        } Catch {
+                            $BasePath = "${env:windir}\LTSVC" 
+                        }#End Try
                     } Else {
-                        $BasePath = "$env:windir\LTSVC" 
-                    }
+                        $BasePath = "${env:windir}\LTSVC" 
+                    }#End If
                     Add-Member -InputObject $key -MemberType NoteProperty -Name BasePath -Value $BasePath
-                }
-                $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-object -Expand BasePath -EA 0)) -replace '\\\\','\'
-                if (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+                }#End If
+                $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($($key|Select-Object -Expand BasePath -EA 0)) -replace '\\\\','\'
+                If ($Null -ne $key -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
                     $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim() -replace '~',''}
                     Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
                 }#End If
             }#End Try
             
             Catch{
-                Write-Error "ERROR: There was a problem reading the registry keys. $($Error[0])"
+                Write-Error "ERROR: Line $(LINENUM): There was a problem reading the registry keys. $($Error[0])"
             }#End Catch
         }#End If
     }#End Process
 
     End{
         If ($?){
-            Write-Debug "Exiting $($myInvocation.InvocationName)"
+            Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
             return $key
         } Else {
-            Write-Debug "Exiting $($myInvocation.InvocationName)"
-        }
+            Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
+        }#End If
     }#End End
 }#End Function Get-LTServiceInfo
 
@@ -565,7 +573,7 @@ Function Uninstall-LTService{
         Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
-        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
+        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-Object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
             Throw "Line $(LINENUM): Needs to be ran as Administrator" 
         }
 
@@ -988,7 +996,7 @@ Function Install-LTService{
             }#End If
         }#End If
 
-        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
+        If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-Object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
             Throw "Needs to be ran as Administrator" 
         }
 
@@ -1078,7 +1086,7 @@ Function Install-LTService{
                         $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
                         Write-Debug "Raw Response: $SvrVer"
                         $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{1,3}\.[0-9]{1,3}'|ForEach-Object {$_.matches}|Select-Object -Expand value -EA 0
-                        if (($SVer) -eq $Null) {
+                        if ($Null -eq $SVer) {
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
@@ -1380,7 +1388,7 @@ Function Redo-LTService{
         # Gather install stats from registry or backed up settings
         Try {
             $Settings = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False
-            If (($Settings) -ne $Null) {
+            If ($Null -ne $Settings) {
                 If (($Settings|Select-Object -Expand Probe -EA 0) -eq '1') {
                     If ($Force -eq $True) {
                         Write-Output "Probe Agent Detected. Re-Install Forced."
@@ -1396,7 +1404,7 @@ Function Redo-LTService{
         } Catch {
             Write-Debug "Failed to retrieve current Agent Settings."        
         }#End Catch
-        If (($Settings) -eq $Null) {
+        If ($Null -eq $Settings) {
             Write-Debug "Unable to retrieve current Agent Settings. Testing for Backup Settings"
             Try {
                 $Settings = Get-LTServiceInfoBackup -EA 0
@@ -1408,7 +1416,7 @@ Function Redo-LTService{
     Process{
         if (-not ($Server)){
             if ($Settings){
-              $Server = $Settings|Select-object -Expand 'Server' -EA 0
+              $Server = $Settings|Select-Object -Expand 'Server' -EA 0
             }
             if (-not ($Server)){
                 $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
@@ -1416,7 +1424,7 @@ Function Redo-LTService{
         }
         if (-not ($LocationID)){
             if ($Settings){
-                $LocationID = $Settings|Select-object -Expand LocationID -EA 0
+                $LocationID = $Settings|Select-Object -Expand LocationID -EA 0
             }
             if (-not ($LocationID)){
                 $LocationID = Read-Host -Prompt 'Provide the LocationID'
@@ -1533,7 +1541,7 @@ Function Update-LTService{
         Process{
             if (-not ($Server)){
                 If ($Settings){
-                  $Server = $Settings|Select-object -Expand 'Server' -EA 0
+                  $Server = $Settings|Select-Object -Expand 'Server' -EA 0
                 }
             }
 
@@ -1643,7 +1651,7 @@ Function Update-LTService{
         }#End Process
 
         End{
-            $detectedVersion = $Settings|Select-object -Expand 'Version' -EA 0
+            $detectedVersion = $Settings|Select-Object -Expand 'Version' -EA 0
             If ($Null -eq $detectedVersion){
                 Write-Error "ERROR: Line $(LINENUM): No existing installation was found." -ErrorAction Stop
                 Return
@@ -1756,7 +1764,7 @@ Function Get-LTError{
     Param()
 
     Begin{
-        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-object -Expand BasePath -EA 0)
+        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
     }#End Begin
 
@@ -1882,7 +1890,7 @@ Function Reset-LTService{
                 }#End If
             }#End If
         }#End If
-        Write-Output "OLD ID: $($LTSI|Select-object -Expand ID -EA 0) LocationID: $($LTSI|Select-object -Expand LocationID -EA 0) MAC: $($LTSI|Select-object -Expand MAC -EA 0)"
+        Write-Output "OLD ID: $($LTSI|Select-Object -Expand ID -EA 0) LocationID: $($LTSI|Select-Object -Expand LocationID -EA 0) MAC: $($LTSI|Select-Object -Expand MAC -EA 0)"
         $LTSI=$Null
     }#End Begin
 
@@ -1933,7 +1941,7 @@ Function Reset-LTService{
                 }#End While
                 Write-Host ""
                 $LTSI=Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
-                Write-Output "NEW ID: $($LTSI|Select-object -Expand ID -EA 0) LocationID: $($LTSI|Select-object -Expand LocationID -EA 0) MAC: $($LTSI|Select-object -Expand MAC -EA 0)"
+                Write-Output "NEW ID: $($LTSI|Select-Object -Expand ID -EA 0) LocationID: $($LTSI|Select-Object -Expand LocationID -EA 0) MAC: $($LTSI|Select-Object -Expand MAC -EA 0)"
             }#End If
         } Else {$Error[0]}
         Write-Debug "Exiting $($myInvocation.InvocationName)"
@@ -2284,10 +2292,10 @@ Function Test-LTPorts{
             If (($processes)) {
                 If (-not ($Quiet)){
                     Foreach ($proc In $processes) {
-                        If ((Get-Process -ID $proc -EA 0|Select-object -Expand ProcessName -EA 0) -eq 'LTSvc') {
+                        If ((Get-Process -ID $proc -EA 0|Select-Object -Expand ProcessName -EA 0) -eq 'LTSvc') {
                             Write-Output "TrayPort Port $TrayPort is being used by LTSvc."
                         } Else {
-                            Write-Output "Error: TrayPort Port $TrayPort is being used by $(Get-Process -ID $proc|Select-object -Expand ProcessName -EA 0)."
+                            Write-Output "Error: TrayPort Port $TrayPort is being used by $(Get-Process -ID $proc|Select-Object -Expand ProcessName -EA 0)."
                         }#End If
                     }#End Foreach
                 } Else {return $False}#End If
@@ -2365,7 +2373,7 @@ Function Get-LTLogging{
   
   Process{
     Try{
-        $Value = (Get-LTServiceSettings|Select-object -Expand Debuging -EA 0)
+        $Value = (Get-LTServiceSettings|Select-Object -Expand Debuging -EA 0)
     }#End Try
     
     Catch{
@@ -2475,7 +2483,7 @@ Function Get-LTProbeErrors{
     Param()
     
     Begin{
-        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-object -Expand BasePath -EA 0)
+        $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
         if (!($BasePath)){$BasePath = "$env:windir\LTSVC"}
     }#End Begin
 
@@ -2633,10 +2641,10 @@ Function Get-LTServiceInfoBackup{
         }
         Try{
             $key = Get-ItemProperty HKLM:\SOFTWARE\LabTechBackup\Service -ErrorAction Stop | Select-Object * -exclude $exclude
-            If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
+            If ($Null -ne $key -and ($key|Get-Member|Where-Object {$_.Name -match 'BasePath'})) {
                 $key.BasePath = [System.Environment]::ExpandEnvironmentVariables($key.BasePath) -replace '\\\\','\'
             }
-            If (($key) -ne $Null -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
+            If ($Null -ne $key -and ($key|Get-Member|Where-Object {$_.Name -match 'Server Address'})) {
                 $Servers = ($Key|Select-Object -Expand 'Server Address' -EA 0).Split('|')|ForEach-Object {$_.Trim()}
                 Add-Member -InputObject $key -MemberType NoteProperty -Name 'Server' -Value $Servers -Force
             }
@@ -2847,7 +2855,7 @@ Function Invoke-LTServiceCommand {
                     default {"Invalid entry"}
                 }
                 If ($PSCmdlet.ShouldProcess("LTService", "Send Service Command '$($Cmd)' ($($CommandID))")) {
-                    If (($CommandID) -ne $Null) {
+                    If ($Null -ne $CommandID) {
                         Write-Debug "Sending service command '$($Cmd)' ($($CommandID)) to 'LTService'"
                         Try {
                             $Null=& "$env:windir\system32\sc.exe" control LTService $($CommandID) 2>''
@@ -2900,7 +2908,7 @@ Function Initialize-LTServiceKeys{
         If (($LTSI) -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
             Write-Debug "Decoding Server Password."
             $Script:LTServiceKeys.ServerPasswordString=$(ConvertFrom-LTSecurity -InputString "$($LTSI.ServerPassword)")
-            If (($LTSI) -ne $Null -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'Password'})) {
+            If ($Null -ne $LTSI -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'Password'})) {
                 Write-Debug "Decoding Agent Password."
                 $Script:LTServiceKeys.PasswordString=$(ConvertFrom-LTSecurity -InputString "$($LTSI.Password)" -Key "$($Script:LTServiceKeys.ServerPasswordString)")
             } Else {
@@ -2963,15 +2971,15 @@ Param(
     }#End Begin
 
     Process {
-        If ($Key -eq $Null) {
+        If ($Null -eq $Key) {
             $NoKeyPassed=$True
             $Key=$DefaultKey
         }
         foreach ($testInput in $InputString) {
             $DecodeString=$Null
             foreach ($testKey in $Key) {
-                If ($DecodeString -eq $Null) {
-                    If ($testKey -eq $Null) {
+                If ($Null -eq $DecodeString) {
+                    If ($Null -eq $testKey) {
                         $NoKeyPassed=$True
                         $testKey=$DefaultKey
                     }#End If
@@ -2994,16 +3002,16 @@ Param(
                 } Else {
                 }#End If
             }#End foreach
-            If ($DecodeString -eq $Null) {
+            If ($Null -eq $DecodeString) {
                 If ($Force) {
                     If (($NoKeyPassed)) {
                         $DecodeString=ConvertFrom-LTSecurity -InputString "$($testInput)" -Key '' -Force:$False
-                        If (-not ($DecodeString -eq $Null)) {
+                        If (-not ($Null -eq $DecodeString)) {
                             $DecodedString+=@($DecodeString)
                         }
                     } Else {
                         $DecodeString=ConvertFrom-LTSecurity -InputString "$($testInput)"
-                        if (-not ($DecodeString -eq $Null)) {
+                        if (-not ($Null -eq $DecodeString)) {
                             $DecodedString+=@($DecodeString)
                         }
                     }#End If
@@ -3014,7 +3022,7 @@ Param(
     }#End Process
 
     End {
-        If ($DecodedString -eq $Null) {
+        If ($Null -eq $DecodedString) {
             Write-Debug "Failed to Decode string: '$($InputString)'"
             return $Null
         } else {
@@ -3065,7 +3073,7 @@ Param(
         $_initializationVector = [byte[]](240, 3, 45, 29, 0, 76, 173, 59)
         $DefaultKey='Thank you for using LabTech.'
 
-        If ($Key -eq $Null) {
+        If ($Null -eq $Key) {
             $Key=$DefaultKey
         }#End If
 
@@ -3239,7 +3247,7 @@ Function Set-LTProxy{
                                 Try{
                                     $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy("http://$($Svr)").Authority
                                 } catch {}
-                                If (($Script:LTProxy.ProxyServerURL -ne $Null) -and ($Script:LTProxy.ProxyServerURL -ne '') -and ($Script:LTProxy.ProxyServerURL -notcontains "$($Svr)")) {
+                                If (($Null -ne $Script:LTProxy.ProxyServerURL) -and ($Script:LTProxy.ProxyServerURL -ne '') -and ($Script:LTProxy.ProxyServerURL -notcontains "$($Svr)")) {
                                     Write-Debug "Detected Proxy URL: $($Script:LTProxy.ProxyServerURL) on server $($Svr)"
                                     $Script:LTProxy.Enabled=$True
                                 }#End If
@@ -3250,7 +3258,7 @@ Function Set-LTProxy{
                         if (($Script:LTProxy.ProxyServerURL -eq '') -or ($Script:LTProxy.ProxyServerURL -contains '$Svr')) {
                             $Script:LTProxy.ProxyServerURL = netsh winhttp show proxy | select-string -pattern '(?i)(?<=Proxyserver.*http\=)([^;\r\n]*)' -EA 0|ForEach-Object {$_.matches}|Select-Object -Expand value
                         }
-                        if (($Script:LTProxy.ProxyServerURL -eq $Null) -or ($Script:LTProxy.ProxyServerURL -eq '')) {
+                        if (($Null -eq $Script:LTProxy.ProxyServerURL) -or ($Script:LTProxy.ProxyServerURL -eq '')) {
                             $Script:LTProxy.ProxyServerURL=''
                             $Script:LTProxy.Enabled=$False
                         } else {
@@ -3308,21 +3316,21 @@ Function Set-LTProxy{
     End{
         If ($?){
             $LTServiceSettingsChanged=$False
-            If (($LTSS) -ne $Null) {
+            If ($Null -ne ($LTSS)) {
                 If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'})) {
-                    If (($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -ne $Script:LTProxy.ProxyServerURL) -and (($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -eq '' -and $Script:LTProxy.Enabled -eq $True -and $Script:LTProxy.ProxyServerURL -match '.+\..+') -or ($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -ne '' -and ($Script:LTProxy.ProxyServerURL -ne '' -or $Script:LTProxy.Enabled -eq $False)))) {
-                        Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS|Select-object -Expand ProxyServerURL -EA 0) New Value: $($Script:LTProxy.ProxyServerURL)"
+                    If (($($LTSS|Select-Object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -ne $Script:LTProxy.ProxyServerURL) -and (($($LTSS|Select-Object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -eq '' -and $Script:LTProxy.Enabled -eq $True -and $Script:LTProxy.ProxyServerURL -match '.+\..+') -or ($($LTSS|Select-Object -Expand ProxyServerURL -EA 0) -replace 'https?://','' -ne '' -and ($Script:LTProxy.ProxyServerURL -ne '' -or $Script:LTProxy.Enabled -eq $False)))) {
+                        Write-Debug "ProxyServerURL Changed: Old Value: $($LTSS|Select-Object -Expand ProxyServerURL -EA 0) New Value: $($Script:LTProxy.ProxyServerURL)"
                         $LTServiceSettingsChanged=$True
                     }#End If
-                    If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS|Select-object -Expand ProxyUsername -EA 0)) {
-                        If ($(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyUsername) {
-                            Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyUsername)"
+                    If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS|Select-Object -Expand ProxyUsername -EA 0)) {
+                        If ($(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-Object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyUsername) {
+                            Write-Debug "ProxyUsername Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-Object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyUsername)"
                             $LTServiceSettingsChanged=$True
                         }
                     }#End If
-                    If (($LTSS) -ne $Null -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS|Select-object -Expand ProxyPassword -EA 0)) {
-                        If ($(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyPassword) {
-                            Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyPassword)"
+                    If ($Null -ne ($LTSS) -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS|Select-Object -Expand ProxyPassword -EA 0)) {
+                        If ($(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-Object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) -ne $Script:LTProxy.ProxyPassword) {
+                            Write-Debug "ProxyPassword Changed: Old Value: $(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-Object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",'')) New Value: $($Script:LTProxy.ProxyPassword)"
                             $LTServiceSettingsChanged=$True
                         }
                     }#End If
@@ -3398,27 +3406,27 @@ Function Get-LTProxy{
     Process{
         Try {
             $LTSI=Get-LTServiceInfo -EA 0 -WA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
-            If (($LTSI) -ne $Null -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
+            If ($Null -ne $LTSI -and ($LTSI|Get-Member|Where-Object {$_.Name -eq 'ServerPassword'})) {
                 $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
-                If (($LTSS) -ne $Null) {
-                    If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($($LTSS|Select-object -Expand ProxyServerURL -EA 0) -Match 'https?://.+')) {
-                        Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS|Select-object -Expand ProxyServerURL -EA 0)"
+                If ($Null -ne $LTSS) {
+                    If (($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyServerURL'}) -and ($($LTSS|Select-Object -Expand ProxyServerURL -EA 0) -Match 'https?://.+')) {
+                        Write-Debug "Proxy Detected. Setting ProxyServerURL to $($LTSS|Select-Object -Expand ProxyServerURL -EA 0)"
                         $Script:LTProxy.Enabled=$True
-                        $Script:LTProxy.ProxyServerURL="$($LTSS|Select-object -Expand ProxyServerURL -EA 0)"
+                        $Script:LTProxy.ProxyServerURL="$($LTSS|Select-Object -Expand ProxyServerURL -EA 0)"
                     } Else {
                         Write-Debug "Setting ProxyServerURL to "
                         $Script:LTProxy.Enabled=$False
                         $Script:LTProxy.ProxyServerURL=''
                     }#End If
-                    if ($Script:LTProxy.Enabled -eq $True -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS|Select-object -Expand ProxyUsername -EA 0)) {
-                        $Script:LTProxy.ProxyUsername="$(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                    if ($Script:LTProxy.Enabled -eq $True -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyUsername'}) -and ($LTSS|Select-Object -Expand ProxyUsername -EA 0)) {
+                        $Script:LTProxy.ProxyUsername="$(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-Object -Expand ProxyUsername -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
                         Write-Debug "Setting ProxyUsername to $($Script:LTProxy.ProxyUsername)"
                     } Else {
                         Write-Debug "Setting ProxyUsername to "
                         $Script:LTProxy.ProxyUsername=''
                     }#End If
-                    If ($Script:LTProxy.Enabled -eq $True -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS|Select-object -Expand ProxyPassword -EA 0)) {
-                        $Script:LTProxy.ProxyPassword="$(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
+                    If ($Script:LTProxy.Enabled -eq $True -and ($LTSS|Get-Member|Where-Object {$_.Name -eq 'ProxyPassword'}) -and ($LTSS|Select-Object -Expand ProxyPassword -EA 0)) {
+                        $Script:LTProxy.ProxyPassword="$(ConvertFrom-LTSecurity -InputString "$($LTSS|Select-Object -Expand ProxyPassword -EA 0)" -Key ("$($Script:LTServiceKeys.PasswordString)",''))"
                         Write-Debug "Setting ProxyPassword to $($Script:LTProxy.ProxyPassword)"
                     } Else {
                         Write-Debug "Setting ProxyPassword to "
