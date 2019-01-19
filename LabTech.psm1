@@ -74,7 +74,6 @@ IF([Net.SecurityProtocolType]::Tls12) {[Net.ServicePointManager]::SecurityProtoc
 #region [Functions]-------------------------------------------------------------
 
 Function Get-LTServiceInfo{ 
-#region [Get-LTServiceInfo]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will pull all of the registry data into an object.
@@ -151,10 +150,8 @@ Function Get-LTServiceInfo{
         }
     }#End End
 }#End Function Get-LTServiceInfo
-#endregion Get-LTServiceInfo
 
 Function Get-LTServiceSettings{ 
-#region [Get-LTServiceSettings]-------------------------------------------------
 <#
 .SYNOPSIS
     This function will pull the registry data from HKLM:\SOFTWARE\LabTech\Service\Settings into an object.
@@ -199,10 +196,8 @@ Function Get-LTServiceSettings{
     }    
   }#End End
 }#End Function Get-LTServiceSettings
-#endregion LTServiceSettings
 
 Function Restart-LTService{
-#region [Restart-LTService]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will restart the LabTech Services.
@@ -268,10 +263,8 @@ Function Restart-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Restart-LTService
-#endregion Restart-LTService
 
 Function Stop-LTService{
-#region [Stop-LTService]--------------------------------------------------------
 <#
 .SYNOPSIS
     This function will stop the LabTech Services.
@@ -361,10 +354,8 @@ Function Stop-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Stop-LTService
-#endregion Stop-LTService
 
 Function Start-LTService{
-#region [Start-LTService]-------------------------------------------------------
 <#
 .SYNOPSIS
     This function will start the LabTech Services.
@@ -494,10 +485,8 @@ Function Start-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Start-LTService
-#endregion Start-LTService
 
 Function Uninstall-LTService{
-#region [Uninstall-LTService]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will uninstall the LabTech agent from the machine.
@@ -527,7 +516,7 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.5
+    Version:        1.6
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -554,6 +543,10 @@ Function Uninstall-LTService{
     Updated support of -WhatIf parameter.
     Added minimum size requirement for agent installer to detect and skip a bad file download.
 
+    Update Date: 10/18/2018
+    Purpose/Change: Added minimum size requirement for agent uninstaller exe to detect and skip a bad file download. 
+    Uninstall will proceed even if the agent uninstaller exe cannot be downloaded.
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -568,11 +561,12 @@ Function Uninstall-LTService{
     )
 
     Begin{
-        Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,LTSI,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,Item -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
+        Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,LTSI,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,AlternateServer,Item -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
-            Throw "Needs to be ran as Administrator" 
+            Throw "Line $(LINENUM): Needs to be ran as Administrator" 
         }
 
         $LTSI = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
@@ -580,7 +574,7 @@ Function Uninstall-LTService{
             If ($Force -eq $True) {
                 Write-Output "Probe Agent Detected. UnInstall Forced."
             } Else {
-                Write-Error -Exception [System.OperationCanceledException]"Probe Agent Detected. UnInstall Denied." -ErrorAction Stop
+                Write-Error -Exception [System.OperationCanceledException]"Line $(LINENUM): Probe Agent Detected. UnInstall Denied." -ErrorAction Stop
             }#End If
         }#End If
 
@@ -655,14 +649,14 @@ Function Uninstall-LTService{
 
                         Write-Debug "Raw Response: $SvrVer"
                         $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{1,3}\.[0-9]{1,3}'|ForEach-Object {$_.matches}|Select-Object -Expand value -EA 0
-                        If (($SVer) -eq $Null) {
+                        If ($Null -eq ($SVer)) {
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                        If ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
-                        } else {
+                        } Else {
                             #Original Generic Installer URL - Yes, these both reference Location 1 and are thus the same. Will it change in Patch 14? This section is now ready.
                             $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
                         }
@@ -676,26 +670,30 @@ Function Uninstall-LTService{
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
                         If ($installerResult.StatusCode -ne 200) {
-                            Write-Warning "Unable to download Agent_Install.msi from server $($Svr)."
+                            Write-Warning "Line $(LINENUM): Unable to download Agent_Install.msi from server $($Svr)."
                             Continue
                         }
-                        Else{
+                        Else {
                             If ($PSCmdlet.ShouldProcess("$installer", "DownloadFile")) {
                                 Write-Debug "Downloading Agent_Install.msi from $installer"
                                 $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-                                If((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and  !((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
-                                    Write-Warning "Agent_Install.msi size is below normal. Removing suspected corrupt file."
-                                    Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
-                                    Continue
+                                If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi")) {
+                                    If (!((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
+                                        Write-Warning "Line $(LINENUM): Agent_Install.msi size is below normal. Removing suspected corrupt file."
+                                        Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                        Continue
+                                    } Else {
+                                        $AlternateServer = $Svr
+                                    }#End If
                                 }#End If
                             }#End If
                         }#End If
 
                         #Using $SVer results gathered above.
-                        if ([System.Version]$SVer -ge [System.Version]'110.374') {
+                        If ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - The Agent Uninstaller URI has changed.
                             $uninstaller = "$($Svr)/Labtech/Deployment.aspx?ID=-2"
-                        } else {
+                        } Else {
                             #Original Uninstaller URL
                             $uninstaller = "$($Svr)/Labtech/Deployment.aspx?probe=1&ID=-2"
                         }
@@ -709,14 +707,19 @@ Function Uninstall-LTService{
                         $uninstallerResult = $uninstallerTest.GetResponse()
                         $uninstallerTest.Abort()
                         If ($uninstallerResult.StatusCode -ne 200) {
-                            Write-Warning "Unable to download Agent_Uninstall from server."
+                            Write-Warning "Line $(LINENUM): Unable to download Agent_Uninstall from server."
                             Continue
                         } Else {
                             #Download Agent_Uninstall.exe
                             If ($PSCmdlet.ShouldProcess("$uninstaller", "DownloadFile")) {
                                 Write-Debug "Downloading Agent_Uninstall.exe from $uninstaller"
                                 $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
-                            }
+                                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe") -and !((Get-Item "$($env:windir)\temp\Agent_Uninstall.exe" -EA 0).length/1KB -gt 80)) {
+                                    Write-Warning "Line $(LINENUM): Agent_Uninstall.exe size is below normal. Removing suspected corrupt file."
+                                    Remove-Item "$($env:windir)\temp\Agent_Uninstall.exe" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                    Continue
+                                }#End If
+                            }#End If
                         }#End If
                         If ($WhatIfPreference -eq $True) {
                             $GoodServer = $Svr
@@ -724,12 +727,12 @@ Function Uninstall-LTService{
                             $GoodServer = $Svr
                             Write-Verbose "Successfully downloaded files from $($Svr)."
                         } Else {
-                            Write-Warning "Error encountered downloading from $($Svr). Uninstall file(s) could not be received."
+                            Write-Warning "Line $(LINENUM): Error encountered downloading from $($Svr). Uninstall file(s) could not be received."
                             Continue
                         }#End If
                     }#End Try
                     Catch {
-                        Write-Warning "Error encountered downloading from $($Svr)."
+                        Write-Warning "Line $(LINENUM): Error encountered downloading from $($Svr)."
                         Continue
                     }
                 } Else {
@@ -743,30 +746,30 @@ Function Uninstall-LTService{
     }#End Process
 
     End{
-        if ($GoodServer) {
+        If ($GoodServer -match 'https?://.+' -or $AlternateServer -match 'https?://.+') {
             Try{
                 Write-Output "Starting Uninstall."
 
-                try { Stop-LTService -ErrorAction SilentlyContinue } catch {}
+                Try { Stop-LTService -ErrorAction SilentlyContinue } Catch {}
 
                 #Kill all running processes from %ltsvcdir%   
-                if (Test-Path $BasePath){
+                If (Test-Path $BasePath){
                     $Executables = (Get-ChildItem $BasePath -Filter *.exe -Recurse -ErrorAction SilentlyContinue|Select-Object -Expand FullName)
-                    if ($Executables) {
+                    If ($Executables) {
                         Write-Verbose "Terminating LabTech Processes from $($BasePath) if found running: $(($Executables) -replace [Regex]::Escape($BasePath),'' -replace '^\\','')"
                         Get-Process | Where-Object {$Executables -contains $_.Path } | ForEach-Object {
                             Write-Debug "Terminating Process $($_.ProcessName)"
                             $($_) | Stop-Process -Force -ErrorAction SilentlyContinue
                         }
                         Get-ChildItem $BasePath -Filter labvnc.exe -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction 0
-                    }
+                    }#End If
 
                     If ($PSCmdlet.ShouldProcess("$($BasePath)\wodVPN.dll", "Unregister DLL")) {
                         #Unregister DLL
                         Write-Debug "Executing Command ""regsvr32.exe /u $($BasePath)\wodVPN.dll /s"""
                         Try {& "$env:windir\system32\regsvr32.exe" /u "$($BasePath)\wodVPN.dll" /s 2>''} 
                         Catch {Write-Output "Error calling regsvr32.exe."}
-                    }
+                    }#End If
                 }#End If
 
                 If ($PSCmdlet.ShouldProcess("msiexec.exe $($xarg)", "Execute MSI Uninstall")) {
@@ -801,7 +804,7 @@ Function Uninstall-LTService{
                             Write-Debug "Removing Service: $($_)"
                             Try {& "$env:windir\system32\sc.exe" delete "$($_)" 2>''} 
                             Catch {Write-Output "Error calling sc.exe."}
-                            }#End If
+                        }#End If
                     }#End If
                 }#End ForEach-Object
 
@@ -822,7 +825,7 @@ Function Uninstall-LTService{
 
                 Write-Verbose "Cleaning Registry Keys if found."
                 #Remove all registry keys - Depth First Value Removal, then Key Removal, to get as much removed as possible if complete removal fails
-                foreach ($reg in $regs) {
+                Foreach ($reg in $regs) {
                     If ((Test-Path "$($reg)" -EA 0)) {
                         Write-Debug "Found Registry Key: $($reg)"
                         If ( $PSCmdlet.ShouldProcess("$($Reg)","Remove Registry Key") ) {
@@ -836,7 +839,7 @@ Function Uninstall-LTService{
             }#End Try
 
             Catch{
-                Write-Error "ERROR: There was an error during the uninstall process. $($Error[0])" -ErrorAction Stop
+                Write-Error "ERROR: Line $(LINENUM): There was an error during the uninstall process. $($Error[0])" -ErrorAction Stop
             }#End Catch
 
             If ($WhatIfPreference -ne $True) {
@@ -846,7 +849,7 @@ Function Uninstall-LTService{
                         Start-Sleep -Seconds 10
                     }#End If
                     If((Test-Path "$env:windir\ltsvc") -or (Test-Path "$env:windir\temp\_ltudpate") -or (Test-Path registry::HKLM\Software\LabTech\Service) -or (Test-Path registry::HKLM\Software\WOW6432Node\Labtech\Service)){
-                        Write-Error "Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
+                        Write-Error "Line $(LINENUM): Remnants of previous install still detected after uninstall attempt. Please reboot and try again."
                     } Else {
                         Write-Output "LabTech has been successfully uninstalled."
                     }#End If
@@ -855,15 +858,13 @@ Function Uninstall-LTService{
                 }#End If
             }#End If
         } ElseIf ($WhatIfPreference -ne $True) {
-            Write-Error "ERROR: No valid server was reached to use for the uninstall." -ErrorAction Stop
+            Write-Error "ERROR: Line $(LINENUM): No valid server was reached to use for the uninstall." -ErrorAction Stop
         }#End If
-        Write-Debug "Exiting $($myInvocation.InvocationName)"
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Uninstall-LTService
-#endregion Uninstall-LTService
 
 Function Install-LTService{
-#region [Install-LTService]-----------------------------------------------------
 <#
 .SYNOPSIS
     This function will install the LabTech agent on the machine.
@@ -886,7 +887,7 @@ Function Install-LTService{
     (Get-LTServiceInfo).LocationID
 
 .PARAMETER TrayPort
-    This is the port LTSvc.exe listens on for communication with LTTray processess.
+    This is the port LTSvc.exe listens on for communication with LTTray processes.
 
 .PARAMETER Rename
     This will call Rename-LTAddRemove after the install.
@@ -1279,10 +1280,8 @@ Function Install-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Install-LTService
-#endregion Install-LTService
 
 Function Redo-LTService{
-#region [Redo-LTService]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will reinstall the LabTech agent from the machine.
@@ -1481,11 +1480,9 @@ Function Redo-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Redo-LTService
-#endregion Redo-LTService
 Set-Alias -Name ReInstall-LTService -Value Redo-LTService
 
 Function Update-LTService{
-    #region [Update-LTService]---------------------------------------------------
     <#
     .SYNOPSIS
         This function will manually update the LabTech agent to the requested version.
@@ -1550,7 +1547,7 @@ Function Update-LTService{
                             $SvrVer = $Script:LTServiceNetWebClient.DownloadString($SvrVerCheck)
                             Write-Debug "Raw Response: $SvrVer"
                             $SVer = $SvrVer|select-string -pattern '(?<=[|]{6})[0-9]{1,3}\.[0-9]{1,3}'|ForEach-Object {$_.matches}|Select-Object -Expand value -EA 0
-                            If (($SVer) -eq $Null) {
+                            If ($Null -eq ($SVer)) {
                                 Write-Verbose "Unable to test version response from $($Svr)."
                                 Continue
                             }
@@ -1725,10 +1722,8 @@ Function Update-LTService{
             Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
         }#End End
     }#End Function Update-LTService
-    #endregion Update-LTService
 
 Function Get-LTError{
-#region [Get-LTError]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This will pull the %ltsvcdir%\LTErrors.txt file into an object.
@@ -1797,10 +1792,8 @@ Function Get-LTError{
         Else {$Error[0]}
     }#End End
 }#End Function Get-LTError
-#endregion Get-LTError
 
 Function Reset-LTService{
-#region [Reset-LTService]-------------------------------------------------------
 <#
 .SYNOPSIS
     This function will remove local settings on the agent.
@@ -1871,7 +1864,7 @@ Function Reset-LTService{
         Write-Debug "Starting $($myInvocation.InvocationName)"
 
         $Reg = 'HKLM:\Software\LabTech\Service'
-        If (!($ID -or $LocationID -or $MAC)){
+        If (!($ID -and $LocationID -and $MAC)){
             $ID=$True
             $Location=$True
             $MAC=$True
@@ -1946,10 +1939,8 @@ Function Reset-LTService{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Reset-LTService
-#endregion Reset-LTService
 
 Function Hide-LTAddRemove{
-#region [Hide-LTAddRemove]------------------------------------------------------
 <#
 .SYNOPSIS
     This function hides the LabTech install from the Add/Remove Programs list.
@@ -2053,10 +2044,8 @@ Function Hide-LTAddRemove{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Hide-LTAddRemove
-#endregion Hide-LTAddRemove
 
 Function Show-LTAddRemove{
-#region [Show-LTAddRemove]------------------------------------------------------
 <#
 .SYNOPSIS
     This function shows the LabTech install in the add/remove programs list.
@@ -2161,10 +2150,8 @@ Function Show-LTAddRemove{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Show-LTAddRemove
-#endregion Show-LTAddRemove
 
 Function Test-LTPorts{
-#region [Test-LTPorts]----------------------------------------------------------
 <#
 .SYNOPSIS
     This function will attempt to connect to all required TCP ports.
@@ -2347,10 +2334,8 @@ Function Test-LTPorts{
         Write-Debug "Exiting $($myInvocation.InvocationName)"
     }#End End
 }#End Function Test-LTPorts
-#endregion Test-LTPorts
 
 Function Get-LTLogging{
-#region [Get-LTLogging]---------------------------------------------------- ----
 <#
 .SYNOPSIS
     This function will return the logging level of the LabTech service.
@@ -2403,10 +2388,8 @@ Function Get-LTLogging{
     }    
   }#End End
 }#End Function Get-LTLogging
-#endregion Get-LTLogging
 
 Function Set-LTLogging{
-#region [Set-LTLogging]---------------------------------------------------- ----
 <#
 .SYNOPSIS
         This function will set the logging level of the LabTech service.
@@ -2458,10 +2441,8 @@ Function Set-LTLogging{
     }    
   }#End End
 }#End Function Set-LTLogging
-#endregion Set-LTLogging
 
 Function Get-LTProbeErrors{
-#region [Get-LTProbeErrors]-----------------------------------------------------
 <#
 .SYNOPSIS
     This will pull the %ltsvcdir%\LTProbeErrors.txt file into an object.
@@ -2522,10 +2503,8 @@ Function Get-LTProbeErrors{
         
     }#End End
 }#End Function Get-LTProbeErrors
-#endregion Get-LTProbeErrors
 
 Function New-LTServiceBackup{
-#region [New-LTServiceBackup]---------------------------------------------------
 <#
 .SYNOPSIS
     This function will backup all the reg keys to 'HKLM\SOFTWARE\LabTechBackup'
@@ -2617,10 +2596,8 @@ Function New-LTServiceBackup{
     Write-Debug "Exiting $($myInvocation.InvocationName)"
   }#End End
 }#End Function New-LTServiceBackup
-#endregion New-LTServiceBackup
 
 Function Get-LTServiceInfoBackup{
-#region [Get-LTServiceInfoBackup]-----------------------------------------------
 <#
 .SYNOPSIS
     This function will pull all of the backed up registry data into an object.
@@ -2676,10 +2653,8 @@ Function Get-LTServiceInfoBackup{
         }    
     }#End End
 }#End Function Get-LTServiceInfoBackup
-#endregion Get-LTServiceInfoBackup
 
 Function Rename-LTAddRemove{
-#region [Rename-LTAddRemove]----------------------------------------------------
 <#
 .SYNOPSIS
     This function renames the LabTech install as shown in the Add/Remove Programs list.
@@ -2791,10 +2766,8 @@ Function Rename-LTAddRemove{
         }#End If
     }#End End
 }#End Function Rename-LTAddRemove
-#endregion Rename-LTAddRemove
 
 Function Invoke-LTServiceCommand {
-#region [Invoke-LTServiceCommand]--------------------------------------------------
 <#
 .SYNOPSIS
     This function tells the agent to execute the desired command.
@@ -2896,10 +2869,8 @@ Function Invoke-LTServiceCommand {
     End{}
 
 } # End Function Invoke-LTServiceCommand
-#endregion Invoke-LTServiceCommand
 
 Function Initialize-LTServiceKeys{
-#region [Initialize-LTServiceKeys]--------------------------------------------------------
 <#
 .SYNOPSIS
     This function initializes internal variables needed by other functions
@@ -2944,10 +2915,8 @@ Function Initialize-LTServiceKeys{
     End {
     }#End End
 }#End Function Initialize-LTServiceKeys
-#endregion Initialize-LTServiceKeys
 
 Function ConvertFrom-LTSecurity{
-#region [ConvertFrom-LTSecurity]----------------------------------------------------
 <#
 .SYNOPSIS
     This function decodes an encoded Base64 value
@@ -3054,10 +3023,8 @@ Param(
    }#End End
 
 }#End Function ConvertFrom-LTSecurity
-#endregion ConvertFrom-LTSecurity
 
 Function ConvertTo-LTSecurity{
-#region [ConvertTo-LTSecurity]----------------------------------------------------
 <#
 .SYNOPSIS
     This function encodes a value compatible with LT operations.
@@ -3127,10 +3094,8 @@ Param(
         return $str
     }#End Begin
 }#End Function ConvertTo-LTSecurity
-#endregion ConvertTo-LTSecurity
 
 Function Set-LTProxy{
-#region [Set-LTProxy]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This function configures module functions to use the specified proxy 
@@ -3391,10 +3356,8 @@ Function Set-LTProxy{
     }#End End
 
 }#End Function Set-LTProxy
-#endregion Set-LTProxy
 
 Function Get-LTProxy{
-#region [Get-LTProxy]-----------------------------------------------------------
 <#
 .SYNOPSIS
     This function retrieves the current agent proxy settings for module functions
@@ -3476,16 +3439,12 @@ Function Get-LTProxy{
         return $Script:LTProxy
     }#End End
 }#End Function Get-LTProxy
-#endregion Get-LTProxy
 
 Function Get-CurrentLineNumber {
-#region [Get-CurrentLineNumber]--------------------------------------------
     $MyInvocation.ScriptLineNumber
 }
-#endregion Get-CurrentLineNumber
 
 Function Initialize-LTServiceModule{
-#region [Initialize-LTServiceModule]--------------------------------------------
 <#
 .SYNOPSIS
     This function initializes internal variables needed by other functions
@@ -3533,7 +3492,6 @@ Function Initialize-LTServiceModule{
     $Null=Get-LTProxy -ErrorAction Continue
 
 }#End Initialize-LTServiceModule
-#endregion Initialize-LTServiceModule
 
 #endregion Functions
 
