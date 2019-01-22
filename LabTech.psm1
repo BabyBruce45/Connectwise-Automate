@@ -648,7 +648,7 @@ Function Uninstall-LTService{
         }
         Foreach ($Svr in $Server) {
             If (-not ($GoodServer)) {
-                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     Try{
                         If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
@@ -984,14 +984,15 @@ Function Install-LTService{
 
     Begin{
         Clear-Variable DotNET,OSVersion,PasswordArg,Result,logpath,logfile,curlog,installer,installerTest,installerResult,GoodServer,GoodTrayPort,TestTrayPort,Svr,SVer,SvrVer,SvrVerCheck,iarg,timeout,sw,tmpLTSI -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         If (!($Force)) {
             If (Get-Service 'LTService','LTSvcMon' -ErrorAction SilentlyContinue) {
                 If ($WhatIfPreference -ne $True) {
-                    Write-Error "Services are already installed." -ErrorAction Stop
+                    Write-Error "ERROR: Line $(LINENUM): Services are already installed." -ErrorAction Stop
                 } Else {
-                    Write-Error "What if: Stopping: Services are already installed." -ErrorAction Stop
+                    Write-Error "ERROR: Line $(LINENUM): What if: Stopping: Services are already installed." -ErrorAction Stop
                 }#End If
             }#End If
         }#End If
@@ -1018,7 +1019,7 @@ Function Install-LTService{
                         }
                     }
                     catch{
-                        Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
+                        Write-Error "ERROR: Line $(LINENUM): .NET 3.5 install failed." -ErrorAction Continue
                         if (!($Force)) { Write-Error $Install -ErrorAction Stop }
                     }
                 }
@@ -1032,7 +1033,7 @@ Function Install-LTService{
                             Write-Warning ".Net Framework 3.5 has been installed and enabled." 
                         }
                         Else { 
-                            Write-Error "ERROR: .NET 3.5 install failed." -ErrorAction Continue
+                            Write-Error "ERROR: Line $(LINENUM): .NET 3.5 install failed." -ErrorAction Continue
                             If (!($Force)) { Write-Error $Result -ErrorAction Stop }
                         }#End If
                     }#End If
@@ -1044,12 +1045,12 @@ Function Install-LTService{
             If (-not ($DotNet -like '3.5.*')){
                 If (($Force)) {
                     If ($DotNet -like '2.0.*'){
-                        Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Continue
+                        Write-Error "ERROR: Line $(LINENUM): .NET 3.5 is not detected and could not be installed." -ErrorAction Continue
                     } Else {
-                        Write-Error "ERROR: .NET 2.0 is not detected and could not be installed." -ErrorAction Stop
+                        Write-Error "ERROR: Line $(LINENUM): .NET 2.0 is not detected and could not be installed." -ErrorAction Stop
                     }#End If
                 } Else {
-                    Write-Error "ERROR: .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
+                    Write-Error "ERROR: Line $(LINENUM): .NET 3.5 is not detected and could not be installed." -ErrorAction Stop            
                 }#End If
             }#End If
         }#End If
@@ -1078,7 +1079,7 @@ Function Install-LTService{
         }
         Foreach ($Svr in $Server) {
             If (-not ($GoodServer)) {
-                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                     Try {
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
@@ -1207,7 +1208,7 @@ Function Install-LTService{
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
                     } Until ($InstallAttempt -ge 3 -or $svcRun -eq 1)
                     If ($svcRun -eq 0) {
-                        Write-Error "LTService was not installed. Installation failed."
+                        Write-Error "ERROR: Line $(LINENUM): LTService was not installed. Installation failed."
                         return
                     }
                 }#End If
@@ -1255,7 +1256,7 @@ Function Install-LTService{
             }#End Try
 
             Catch{
-                Write-Error "ERROR: There was an error during the install process. $($Error[0])"
+                Write-Error "ERROR: Line $(LINENUM): There was an error during the install process. $($Error[0])"
                 return
             }#End Catch
 
@@ -1265,16 +1266,16 @@ Function Install-LTService{
                     If (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
                         Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
                     } ElseIf (!($NoWait)) {
-                        Write-Error "ERROR: LabTech installation completed but Agent failed to register within expected period." -ErrorAction Continue
+                        Write-Error "ERROR: Line $(LINENUM): LabTech installation completed but Agent failed to register within expected period." -ErrorAction Continue
                     } Else {
                         Write-Warning "WARNING: LabTech installation completed but Agent did not yet register." -WarningAction Continue
                     }#End If
                 } Else {
                     If (($Error)) {
-                        Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log $($Error[0])"
+                        Write-Error "ERROR: Line $(LINENUM): There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log $($Error[0])"
                         return
                     } ElseIf (!($NoWait)) {
-                        Write-Error "ERROR: There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log"
+                        Write-Error "ERROR: Line $(LINENUM): There was an error installing LabTech. Check the log, $($env:windir)\temp\LabTech\LTAgentInstall.log"
                         return
                     } Else {
                         Write-Warning "WARNING: LabTech installation may not have succeeded." -WarningAction Continue
@@ -1283,9 +1284,9 @@ Function Install-LTService{
             }#End If
             If (($Rename) -and $Rename -notmatch 'False'){ Rename-LTAddRemove -Name $Rename }
         } ElseIf ( $WhatIfPreference -ne $True ) {
-            Write-Error "ERROR: No valid server was reached to use for the install."
+            Write-Error "ERROR: Line $(LINENUM): No valid server was reached to use for the install."
         }#End If
-        Write-Debug "Exiting $($myInvocation.InvocationName)"
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Install-LTService
 
@@ -1547,7 +1548,7 @@ Function Update-LTService{
 
             Foreach ($Svr in $Server) {
                 If (-not ($GoodServer)) {
-                    If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                    If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                         If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                         Try {
                             $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
@@ -2238,7 +2239,7 @@ Function Test-LTPorts{
             )
 
         $RemoteServer = If ([string]::IsNullOrEmpty($ComputerName)) {$IPAddress} Else {$ComputerName};
-        If ([string]::IsNullOrEmpty($RemoteServer)) {Write-Error "No ComputerName or IPAddress was provided to test."; return}
+        If ([string]::IsNullOrEmpty($RemoteServer)) {Write-Error "ERROR: Line $(LINENUM): No ComputerName or IPAddress was provided to test."; return}
 
         $test = New-Object System.Net.Sockets.TcpClient;
         Try
@@ -2260,7 +2261,8 @@ Function Test-LTPorts{
         }#End Function TestPort
 
         Clear-Variable CleanSvr,svr,proc,processes,port,netstat,line -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
     }#End Begin
   
@@ -2312,7 +2314,7 @@ Function Test-LTPorts{
                 return
             }
 
-            if ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                 Try{
                     $CleanSvr = ($Svr -replace 'https?://',''|ForEach-Object {$_.Trim()})
                     Write-Output "Testing connectivity to required TCP ports:"
@@ -2324,9 +2326,9 @@ Function Test-LTPorts{
                 }#End Try
 
                 Catch{
-                    Write-Error "ERROR: There was an error testing the ports. $($Error[0])" -ErrorAction Stop
+                    Write-Error "ERROR: Line $(LINENUM): There was an error testing the ports. $($Error[0])" -ErrorAction Stop
                 }#End Catch
-            } else {
+            } Else {
                 Write-Warning "Server address $($Svr) is not a valid address or is not formatted correctly. Example: https://lt.domain.com"
             }#End If
         }#End Foreach
@@ -2339,7 +2341,7 @@ Function Test-LTPorts{
             }
         }
         Else{$Error[0]}
-        Write-Debug "Exiting $($myInvocation.InvocationName)"
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Test-LTPorts
 
@@ -3199,7 +3201,8 @@ Function Set-LTProxy{
 
     Begin {
         Clear-Variable LTServiceSettingsChanged,LTSS,LTServiceRestartNeeded,proxyURL,proxyUser,proxyPass,passwd,Svr -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Write-Debug "Starting $($myInvocation.InvocationName)"
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         try {
             $LTSS=Get-LTServiceSettings -EA 0 -Verbose:$False -WA 0 -Debug:$False
@@ -3215,11 +3218,11 @@ Function Set-LTProxy{
 ((($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword)) -and (($ResetProxy -eq $True) -or ($DetectProxy -eq $True))) -or 
 ((($ProxyUsername) -or ($ProxyPassword)) -and (-not ($ProxyServerURL) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword) -or ($ResetProxy -eq $True) -or ($DetectProxy -eq $True))) -or 
 ((($EncodedProxyUsername) -or ($EncodedProxyPassword)) -and (-not ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($ResetProxy -eq $True) -or ($DetectProxy -eq $True)))
-        ) {Write-Error "Set-LTProxy: Invalid Parameter specified" -ErrorAction Stop}
+        ) {Write-Error "ERROR: Line $(LINENUM): Set-LTProxy: Invalid Parameter specified" -ErrorAction Stop}
         If (-not (($ResetProxy -eq $True) -or ($DetectProxy -eq $True) -or ($ProxyServerURL) -or ($ProxyUsername) -or ($ProxyPassword) -or ($EncodedProxyUsername) -or ($EncodedProxyPassword))) 
         {
-            If ($Args.Count -gt 0) {Write-Error "Set-LTProxy: Unknown Parameter specified" -ErrorAction Stop}
-            Else {Write-Error "Set-LTProxy: Required Parameters Missing" -ErrorAction Stop}
+            If ($Args.Count -gt 0) {Write-Error "ERROR: Line $(LINENUM): Set-LTProxy: Unknown Parameter specified" -ErrorAction Stop}
+            Else {Write-Error "ERROR: Line $(LINENUM): Set-LTProxy: Required Parameters Missing" -ErrorAction Stop}
         }
 
         Try{
@@ -3242,7 +3245,7 @@ Function Set-LTProxy{
                     $Servers = @($("$($LTSS|Select-Object -Expand 'ServerAddress' -EA 0)|www.connectwise.com").Split('|')|ForEach-Object {$_.Trim()})
                     Foreach ($Svr In $Servers) {
                         If (-not ($Script:LTProxy.Enabled)) {
-                            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*){1,})$') {
+                            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                                 $Svr = $Svr -replace 'https?://',''
                                 Try{
                                     $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy("http://$($Svr)").Authority
@@ -3309,7 +3312,7 @@ Function Set-LTProxy{
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error during the Proxy Configuration process. $($Error[0])" -ErrorAction Stop
+            Write-Error "ERROR: Line $(LINENUM): There was an error during the Proxy Configuration process. $($Error[0])" -ErrorAction Stop
         }#End Catch
     }#End Process
 
@@ -3360,7 +3363,7 @@ Function Set-LTProxy{
             }#End If
         }#End If
         Else {$Error[0]}
-        Write-Debug "Exiting $($myInvocation.InvocationName)"
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 
 }#End Function Set-LTProxy
