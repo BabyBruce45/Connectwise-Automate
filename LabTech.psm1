@@ -1246,7 +1246,7 @@ Function Install-LTService{
                         Write-Host -NoNewline '.'
                         Start-Sleep 5
                         $tmpLTSI = (Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand 'ID' -EA 0)
-                    } Until ($sw.elapsed -gt $timeout -or $tmpLTSI -gt 1)
+                    } Until ($sw.elapsed -gt $timeout -or $tmpLTSI -ge 1)
                     Write-Host ""
                     $sw.Stop()
                     Write-Verbose "Completed wait for LabTech Installation after $(([int32]$sw.Elapsed.TotalSeconds).ToString()) seconds."
@@ -1263,7 +1263,7 @@ Function Install-LTService{
             If ( $WhatIfPreference -ne $True ) {
                 $tmpLTSI = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
                 If (($tmpLTSI)) {
-                    If (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -gt 1) {
+                    If (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -ge 1) {
                         Write-Output "LabTech has been installed successfully. Agent ID: $($tmpLTSI|Select-Object -Expand 'ID' -EA 0) LocationID: $($tmpLTSI|Select-Object -Expand 'LocationID' -EA 0)"
                     } ElseIf (!($NoWait)) {
                         Write-Error "ERROR: Line $(LINENUM): LabTech installation completed but Agent failed to register within expected period." -ErrorAction Continue
