@@ -1758,7 +1758,7 @@ Function Get-LTError{
     Open the log file in a sortable searchable window.
 
 .NOTES
-    Version:        1.2
+    Version:        1.3
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1770,6 +1770,9 @@ Function Get-LTError{
     Update Date: 3/18/2018
     Purpose/Change: Changed Erroraction from Stop to unspecified to allow caller to set the ErrorAction.
 
+    Update Date: 1/26/2019
+    Purpose/Change: Update for better international date parsing support
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1777,13 +1780,15 @@ Function Get-LTError{
     Param()
 
     Begin{
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
     }#End Begin
 
     Process{
         if ($(Test-Path -Path "$BasePath\LTErrors.txt") -eq $False) {
-            Write-Error "ERROR: Unable to find log. $($Error[0])"
+            Write-Error "ERROR: Line $(LINENUM): Unable to find log. $($Error[0])"
             return
         }
         Try{
@@ -1794,7 +1799,7 @@ Function Get-LTError{
                 if ($items[1]){
                     $object = New-Object -TypeName PSObject
                     $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
-                    $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $([datetime]$items[1])
+                    $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $(Try {[datetime]::Parse($items[1])} Catch {})
                     $object | Add-Member -MemberType NoteProperty -Name Message -Value $items[2]
                     Write-Output $object
                 }
@@ -1803,7 +1808,7 @@ Function Get-LTError{
         }#End Try
     
         Catch{
-            Write-Error "ERROR: There was an error reading the log. $($Error[0])"
+            Write-Error "ERROR: Line $(LINENUM): There was an error reading the log. $($Error[0])"
         }#End Catch
     }#End Process
   
@@ -1811,6 +1816,7 @@ Function Get-LTError{
         if ($?){
         }
         Else {$Error[0]}
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Get-LTError
 
@@ -2478,7 +2484,7 @@ Function Get-LTProbeErrors{
     Open the log file in a sortable searchable window.
 
 .NOTES
-    Version:        1.1
+    Version:        1.3
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -2490,6 +2496,9 @@ Function Get-LTProbeErrors{
     Update Date: 3/18/2018
     Purpose/Change: Changed Erroraction from Stop to unspecified to allow caller to set the ErrorAction.
 
+    Update Date: 1/26/2019
+    Purpose/Change: Update for better international date parsing support
+
 .LINK
     http://labtechconsulting.com
 #> 
@@ -2497,32 +2506,40 @@ Function Get-LTProbeErrors{
     Param()
     
     Begin{
+        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
+        Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
         if (!($BasePath)){$BasePath = "$env:windir\LTSVC"}
     }#End Begin
 
     Process{
         if ($(Test-Path -Path "$BasePath\LTProbeErrors.txt") -eq $False) {
-            Write-Error "ERROR: Unable to find log. $($Error[0])"
+            Write-Error "ERROR: Line $(LINENUM): Unable to find log. $($Error[0])"
             return
         }
         $errors = Get-Content "$BasePath\LTProbeErrors.txt"
         $errors = $errors -join ' ' -split ':::'
-        Foreach($Line in $Errors){
-            $items = $Line -split "`t" -replace ' - ',''
-            $object = New-Object -TypeName PSObject
-            $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
-            $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $([datetime]$items[1])
-            $object | Add-Member -MemberType NoteProperty -Name Message -Value $items[2]
-            Write-Output $object
-        }#End Foreach
+        Try {
+            Foreach($Line in $Errors){
+                $items = $Line -split "`t" -replace ' - ',''
+                $object = New-Object -TypeName PSObject
+                $object | Add-Member -MemberType NoteProperty -Name ServiceVersion -Value $items[0]
+                $object | Add-Member -MemberType NoteProperty -Name Timestamp -Value $(Try {[datetime]::Parse($items[1])} Catch {})
+                $object | Add-Member -MemberType NoteProperty -Name Message -Value $items[2]
+                Write-Output $object
+            }#End Foreach
+        }#End Try
+    
+        Catch{
+            Write-Error "ERROR: Line $(LINENUM): There was an error reading the log. $($Error[0])"
+        }#End Catch
     }
 
     End{
         if ($?){
         }
         Else {$Error[0]}
-        
+        Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Get-LTProbeErrors
 
