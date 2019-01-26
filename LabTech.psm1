@@ -1788,7 +1788,7 @@ Function Get-LTError{
 
     Process{
         if ($(Test-Path -Path "$BasePath\LTErrors.txt") -eq $False) {
-            Write-Error "ERROR: Line $(LINENUM): Unable to find log. $($Error[0])"
+            Write-Error "ERROR: Line $(LINENUM): Unable to find log."
             return
         }
         Try{
@@ -2514,7 +2514,7 @@ Function Get-LTProbeErrors{
 
     Process{
         if ($(Test-Path -Path "$BasePath\LTProbeErrors.txt") -eq $False) {
-            Write-Error "ERROR: Line $(LINENUM): Unable to find log. $($Error[0])"
+            Write-Error "ERROR: Line $(LINENUM): Unable to find log."
             return
         }
         $errors = Get-Content "$BasePath\LTProbeErrors.txt"
