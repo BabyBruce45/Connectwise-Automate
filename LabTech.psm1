@@ -107,7 +107,6 @@ Function Get-LTServiceInfo{
     Param ()
 
     Begin{
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         Clear-Variable key,BasePath,exclude,Servers -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
         $exclude = "PSParentPath","PSChildName","PSDrive","PSProvider","PSPath"
@@ -574,7 +573,6 @@ Function Uninstall-LTService{
 
     Begin{
         Clear-Variable Executables,BasePath,reg,regs,installer,installerTest,installerResult,LTSI,uninstaller,uninstallerTest,uninstallerResult,xarg,Svr,SVer,SvrVer,SvrVerCheck,GoodServer,AlternateServer,Item -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         If (-not ([bool](([System.Security.Principal.WindowsIdentity]::GetCurrent()|Select-Object -Expand groups -EA 0) -match 'S-1-5-32-544'))) {
@@ -992,7 +990,6 @@ Function Install-LTService{
 
     Begin{
         Clear-Variable DotNET,OSVersion,PasswordArg,Result,logpath,logfile,curlog,installer,installerTest,installerResult,GoodServer,GoodTrayPort,TestTrayPort,Svr,SVer,SvrVer,SvrVerCheck,iarg,timeout,sw,tmpLTSI -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         If (!($Force)) {
@@ -1542,7 +1539,6 @@ Function Update-LTService{
     )
 
     Begin{
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         Clear-Variable Svr, GoodServer, Settings -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
         $Settings = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False
@@ -1780,7 +1776,6 @@ Function Get-LTErrors{
     Param()
 
     Begin{
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
         if (!$BasePath){$BasePath = "$env:windir\LTSVC"}
@@ -2280,7 +2275,6 @@ Function Test-LTPorts{
         }#End Function TestPort
 
         Clear-Variable CleanSvr,svr,proc,processes,port,netstat,line -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
     }#End Begin
@@ -2507,7 +2501,6 @@ Function Get-LTProbeErrors{
     Param()
     
     Begin{
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
         $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
         if (!($BasePath)){$BasePath = "$env:windir\LTSVC"}
@@ -3231,7 +3224,6 @@ Function Set-LTProxy{
 
     Begin {
         Clear-Variable LTServiceSettingsChanged,LTSS,LTServiceRestartNeeded,proxyURL,proxyUser,proxyPass,passwd,Svr -EA 0 -WhatIf:$False -Confirm:$False #Clearing Variables for use
-        Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         try {
@@ -3484,6 +3476,7 @@ Function Get-LTProxy{
 Function Get-CurrentLineNumber {
     $MyInvocation.ScriptLineNumber
 }
+Set-Alias -name LINENUM -value Get-CurrentLineNumber -WhatIf:$False -Confirm:$False -Scope Script
 
 Function Initialize-LTServiceModule{
 <#
