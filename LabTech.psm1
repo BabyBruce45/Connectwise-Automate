@@ -1487,18 +1487,7 @@ Function Redo-LTService{
 
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
-            $InstallLTServiceParams = @{
-                Server = $ServerList
-                ServerPassword = $ServerPassword
-                LocationID = $LocationID
-                Hide = $Hide
-                Rename = $Rename
-                Force = $true
-            }
-            if ($SkipDotNet) {
-                $InstallLTServiceParams.SkipDotNet = $true
-            }
-            Install-LTService @InstallLTServiceParams
+            Install-LTService -Server $ServerList -ServerPassword $ServerPassword -LocationID $LocationID -Hide:$Hide -Rename $Rename -SkipDotNet:$SkipDotNet -Force
         }#End Try
 
         Catch{
