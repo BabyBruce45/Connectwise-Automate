@@ -1332,6 +1332,9 @@ Function Redo-LTService{
 .PARAMETER Rename
     This will call Rename-LTAddRemove to rename the install in Add/Remove Programs
 
+.PARAMETER SkipDotNet
+    This will disable the error checking for the .NET 3.5 and .NET 2.0 frameworks during the install process.
+
 .PARAMETER Force
     This will force operation on an agent detected as a probe.
 
@@ -1367,6 +1370,9 @@ Function Redo-LTService{
     Added support for -Force parameter to override probe detection.
     Updated support of -WhatIf parameter.
 
+    Update Date: 2/22/2019
+    Purpose/Change: Added -SkipDotNet parameter.
+    Allows for skipping of .NET 3.5 and 2.0 framework checks for installing on OS with .NET 4.0+ already installed
 .LINK
     http://labtechconsulting.com
 #> 
@@ -1387,6 +1393,7 @@ Function Redo-LTService{
         [Parameter()]
         [AllowNull()]
         [string]$Rename,
+        [switch]$SkipDotNet,
         [switch]$Force
     )
 
@@ -1480,7 +1487,7 @@ Function Redo-LTService{
 
         Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
-            Install-LTService -Server $ServerList -ServerPassword $ServerPassword -LocationID $LocationID -Hide:$Hide -Rename $Rename -Force
+            Install-LTService -Server $ServerList -ServerPassword $ServerPassword -LocationID $LocationID -Hide:$Hide -Rename $Rename -SkipDotNet:$SkipDotNet -Force
         }#End Try
 
         Catch{
