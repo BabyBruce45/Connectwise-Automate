@@ -43,6 +43,7 @@ $ModuleVersion = "1.5"
 If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
     Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
     $pshell="${env:WINDIR}\sysnative\windowspowershell\v1.0\powershell.exe"
+    Write-Debug "Launch Context: $($myInvocation | out-String)"
     If (!(Test-Path -Path $pshell)) {
         Write-Warning 'SYSNATIVE REDIRECTION IS NOT AVAILABLE. Attempting to access 64bit binaries directly.'
         $pshell="${env:WINDIR}\System32\WindowsPowershell\v1.0\powershell.exe"
@@ -53,15 +54,14 @@ public static extern bool Wow64DisableWow64FsRedirection(ref IntPtr ptr);
 "@
         $Kernel32 = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru -Name DisableWow64Redirection
         [ref]$ptr = New-Object System.IntPtr
-        $Result = $Kernel32::Wow64DisableWow64FsRedirection($ptr) # Now you can call 64-bit Powershell from system32
+#        $Result = $Kernel32::Wow64DisableWow64FsRedirection($ptr) # Now you can call 64-bit Powershell from system32
     }
-    Write-Debug "Launch Context: $($myInvocation | out-String)"
     If ($myInvocation.Line) {
-        &"$pshell" -NonInteractive -NoProfile $myInvocation.Line
+        Write-Output '&"$pshell" -NonInteractive -NoProfile $myInvocation.Line'
     } Elseif ($myInvocation.InvocationName) {
-        &"$pshell" -NonInteractive -NoProfile -File "$($myInvocation.InvocationName)" $args
+        Write-Output '&"$pshell" -NonInteractive -NoProfile -File "$($myInvocation.InvocationName)" $args'
     } Else {
-        &"$pshell" -NonInteractive -NoProfile $myInvocation.MyCommand
+        Write-Output '&"$pshell" -NonInteractive -NoProfile $myInvocation.MyCommand'
     }
     $ExitResult=$LASTEXITCODE
     If ($FSRedirection -eq $True) {
@@ -71,7 +71,7 @@ public static extern bool Wow64RevertWow64FsRedirection(ref IntPtr ptr);
 "@
         $Kernel32Default = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru -Name RevertWow64Redirection
         [ref]$defaultptr = New-Object System.IntPtr
-        $Result = $Kernel32Default::Wow64RevertWow64FsRedirection($defaultptr)
+#        $Result = $Kernel32Default::Wow64RevertWow64FsRedirection($defaultptr)
     }
     Write-Warning 'Exiting 64-bit session. Module will only remain loaded in native 64-bit PowerShell environment.'
 Exit $ExitResult
