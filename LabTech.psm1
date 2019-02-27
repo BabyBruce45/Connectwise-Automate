@@ -49,11 +49,10 @@ If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
         $MethodSignature = @"
 [DllImport("kernel32.dll", SetLastError=true)]
 public static extern bool Wow64DisableWow64FsRedirection(ref IntPtr ptr);
-public static extern bool Wow64RevertWow64FsRedirection(IntPtr ptr);
 "@
-        $Kernel32 = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru
-        $ptr = [IntPtr]::Zero
-        $Result = $Kernel32::Wow64DisableWow64FsRedirection([ref]$ptr)
+        $Kernel32 = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru -Name DisableWow64Redirection
+        [ref]$ptr = New-Object System.IntPtr
+        $Result = $Kernel32::Wow64DisableWow64FsRedirection($ptr)
         # Now you can call 64-bit Powershell from system32
         $pshell="${env:windir}\System32\WindowsPowershell\v1.0\powershell.exe"
     }
@@ -65,7 +64,13 @@ public static extern bool Wow64RevertWow64FsRedirection(IntPtr ptr);
         &"$pshell" -NonInteractive -NoProfile $myInvocation.MyCommand
     }
     If ($RevertFSRedirection -eq $True) {
-        $Result = $Kernel32::Wow64RevertWow64FsRedirection($ptr)
+        $MethodSignature = @"
+[DllImport("kernel32.dll", SetLastError=true)]
+public static extern bool Wow64RevertWow64FsRedirection(ref IntPtr ptr);
+"@
+        $Kernel32Default = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru -Name Wow64RevertWow64FsRedirection
+        [ref]$defaultptr = New-Object System.IntPtr
+        $Result = $Kernel32Default::Wow64RevertWow64FsRedirection($defaultptr)
     }
     Write-Warning 'Exiting 64-bit session. Module will only remain loaded in native 64-bit PowerShell environment.'
 Exit $lastexitcode
