@@ -68,7 +68,7 @@ public static extern bool Wow64DisableWow64FsRedirection(ref IntPtr ptr);
 [DllImport("kernel32.dll", SetLastError=true)]
 public static extern bool Wow64RevertWow64FsRedirection(ref IntPtr ptr);
 "@
-        $Kernel32Default = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru -Name Wow64RevertWow64FsRedirection
+        $Kernel32Default = Add-Type -MemberDefinition $MethodSignature -Namespace "Kernel32" -Passthru -Name RevertWow64Redirection
         [ref]$defaultptr = New-Object System.IntPtr
         $Result = $Kernel32Default::Wow64RevertWow64FsRedirection($defaultptr)
     }
