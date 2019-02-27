@@ -33,14 +33,14 @@
     Purpose/Change: Added Update-LTService function
 
     Update Date: 2/26/2019
-    Purpose/Change: Update to support 32-bit execution in 64-bit without SYSNATIVE redirection
+    Purpose/Change: Update to support 32-bit execution in 64-bit OS without SYSNATIVE redirection
 #>
 
 if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0 or higher is required.';return}
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality.'}
 
 #Module Version
-$ModuleVersion = "1.5"
+$ModuleVersion = "1.6"
 
 If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
     Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
