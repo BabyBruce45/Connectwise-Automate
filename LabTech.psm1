@@ -545,7 +545,7 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.7
+    Version:        1.8
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -579,6 +579,9 @@ Function Uninstall-LTService{
     Update Date: 1/21/2019
     Purpose/Change: Minor bugfixes/adjustments.
     Allow single label server name.
+    
+    Update Date: 2/28/2019
+    Purpose/Change: Update to try both http and https method if not specified for Server
 
 .LINK
     http://labtechconsulting.com
@@ -670,7 +673,8 @@ Function Uninstall-LTService{
         If (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
         }
-        Foreach ($Svr in $Server) {
+        $Server=ForEach ($Svr in $Server) {$Svr; If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}}
+        ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
                 If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     Try{
@@ -942,7 +946,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        1.9
+    Version:        2.0
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -983,6 +987,9 @@ Function Install-LTService{
     Update Date: 1/21/2019
     Purpose/Change: Minor bugfixes/adjustments.
     Allow single label server name, accept Agent ID 1 as valid.
+    
+    Update Date: 2/28/2019
+    Purpose/Change: Update to try both http and https method if not specified for Server
     
 .LINK
     http://labtechconsulting.com
@@ -1104,7 +1111,8 @@ Function Install-LTService{
         if (-not ($TrayPort) -or -not ($TrayPort -ge 1 -and $TrayPort -le 65535)){
             $TrayPort = "42000"
         }
-        Foreach ($Svr in $Server) {
+        $Server=ForEach ($Svr in $Server) {$Svr; If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}}
+        ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
                 If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
