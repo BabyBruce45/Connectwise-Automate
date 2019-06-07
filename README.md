@@ -5,8 +5,6 @@ To import this module in your scripts you can run:
 (new-object Net.WebClient).DownloadString('https://bit.ly/LTPoSh') | iex
 ```
 
-For more information see: http://labtechconsulting.com/labtech-agent-powershell-module/
-
 # Functions
 
 
