@@ -8,10 +8,10 @@
 
 .DESCRIPTION
     This is a set of commandlets to interface with the LabTech Agent.
-    Tested Versions: v10.5, v11, v12
+    Tested Versions: v10.5, v11, v12, v2019
 
 .NOTES
-    Version:        1.6
+    Version:        1.7
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1886,7 +1886,7 @@ Function Reset-LTService{
     This resets only the ID of the agent.
 
 .NOTES
-    Version:        1.3
+    Version:        1.4
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1902,6 +1902,9 @@ Function Reset-LTService{
 
     Update Date: 3/21/2018
     Purpose/Change: Removed ErrorAction Override
+
+    Update Date: 8/5/2019
+    Purpose/Change: Bugfixes for -Location parameter
 
 .LINK
     http://labtechconsulting.com
@@ -1919,7 +1922,7 @@ Function Reset-LTService{
         Write-Debug "Starting $($myInvocation.InvocationName) at line $(LINENUM)"
 
         $Reg = 'HKLM:\Software\LabTech\Service'
-        If (!($ID -and $LocationID -and $MAC)){
+        If (!$PsBoundParameters.ContainsKey('ID') -and !$PsBoundParameters.ContainsKey('Location') -and !$PsBoundParameters.ContainsKey('MAC')){
             $ID=$True
             $Location=$True
             $MAC=$True
@@ -1953,20 +1956,22 @@ Function Reset-LTService{
         }#End If
 
         Try{
-            Stop-LTService
-            If ($ID) {
-                Write-Output ".Removing ID"
-                Remove-ItemProperty -Name ID -Path $Reg -ErrorAction SilentlyContinue
-            }#End If
-            If ($Location) {
-                Write-Output ".Removing LocationID"
-                Remove-ItemProperty -Name LocationID -Path $Reg -ErrorAction SilentlyContinue
-            }#End If
-            If ($MAC) {
-                Write-Output ".Removing MAC"
-                Remove-ItemProperty -Name MAC -Path $Reg -ErrorAction SilentlyContinue
-            }#End If
-            Start-LTService
+            If ($ID -or $Location -or $MAC) {
+                Stop-LTService
+                If ($ID) {
+                    Write-Output ".Removing ID"
+                    Remove-ItemProperty -Name ID -Path $Reg -ErrorAction SilentlyContinue
+                }#End If
+                If ($Location) {
+                    Write-Output ".Removing LocationID"
+                    Remove-ItemProperty -Name LocationID -Path $Reg -ErrorAction SilentlyContinue
+                }#End If
+                If ($MAC) {
+                    Write-Output ".Removing MAC"
+                    Remove-ItemProperty -Name MAC -Path $Reg -ErrorAction SilentlyContinue
+                }#End If
+                Start-LTService
+            }
         }#End Try
 
         Catch{
