@@ -676,7 +676,7 @@ Function Uninstall-LTService{
         $Server=ForEach ($Svr in $Server) {$Svr; If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}}
         ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
-                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
+                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     Try{
                         If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
@@ -1113,7 +1113,7 @@ Function Install-LTService{
         $Server=ForEach ($Svr in $Server) {$Svr; If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}}
         ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
-                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
+                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                     Try {
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
@@ -1588,7 +1588,7 @@ Function Update-LTService{
 
         Foreach ($Svr in $Server) {
             If (-not ($GoodServer)) {
-                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
+                If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
                     If ($Svr -notmatch 'https?://.+') {$Svr = "http://$($Svr)"}
                     Try {
                         $SvrVerCheck = "$($Svr)/Labtech/Agent.aspx"
@@ -2359,7 +2359,7 @@ Function Test-LTPorts{
                 return
             }
 
-            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
+            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
                 Try{
                     $CleanSvr = ($Svr -replace 'https?://',''|ForEach-Object {$_.Trim()})
                     Write-Output "Testing connectivity to required TCP ports:"
@@ -3299,7 +3299,7 @@ Function Set-LTProxy{
                     $Servers = @($("$($LTSS|Select-Object -Expand 'ServerAddress' -EA 0)|www.connectwise.com").Split('|')|ForEach-Object {$_.Trim()})
                     Foreach ($Svr In $Servers) {
                         If (-not ($Script:LTProxy.Enabled)) {
-                            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]+(\.[a-z0-9][a-z0-9_-]*)*)$') {
+                            If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
                                 $Svr = $Svr -replace 'https?://',''
                                 Try{
                                     $Script:LTProxy.ProxyServerURL=$Script:LTWebProxy.GetProxy("http://$($Svr)").Authority
