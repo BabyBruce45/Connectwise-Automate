@@ -993,6 +993,9 @@ Function Install-LTService{
     Update Date: 2/28/2019
     Purpose/Change: Update to try both http and https methods if not specified for Server
 
+    Update Date: 12/28/2019
+    Purpose/Change: Handle .NET 3.5 in pending state, accept .NET 4.0+ or higher with -Force parameter
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -1040,16 +1043,19 @@ Function Install-LTService{
         If (!$SkipDotNet){
             $DotNET = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse -EA 0 | Get-ItemProperty -name Version,Release -EA 0 | Where-Object { $_.PSChildName -match '^(?!S)\p{L}'} | Select-Object -ExpandProperty Version -EA 0
             If (-not ($DotNet -like '3.5.*')){
-                Write-Output ".NET 3.5 installation needed."
+                Write-Output ".NET Framework 3.5 installation needed."
                 #Install-WindowsFeature Net-Framework-Core
                 $OSVersion = [System.Environment]::OSVersion.Version
 
                 If ([version]$OSVersion -gt [version]'6.2'){
                     Try{
-                        If ( $PSCmdlet.ShouldProcess("NetFx3", "Enable-WindowsOptionalFeature") ) {
-                            $Install = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All
-                            If ($Install.RestartNeeded) {
-                                Write-Output ".NET 3.5 installed but a reboot is needed."
+                        If ( $PSCmdlet.ShouldProcess('NetFx3', 'Enable-WindowsOptionalFeature') ) {
+                            $Install = Get-WindowsOptionalFeature -Online -FeatureName 'NetFx3'
+                            If (!($Install.State -eq 'EnablePending')) {
+                                $Install = Enable-WindowsOptionalFeature -Online -FeatureName 'NetFx3' -All -NoRestart
+                            }
+                            If ($Install.RestartNeeded -or $Install.State -eq 'EnablePending') {
+                                Write-Output ".NET Framework 3.5 installed but a reboot is needed."
                             }
                         }
                     }
@@ -1058,17 +1064,18 @@ Function Install-LTService{
                         If (!($Force)) { Write-Error ("Line $(LINENUM):",$Install) -ErrorAction Stop }
                     }
                 }
-                Else{
+                ElseIf ([version]$OSVersion -gt [version]'6.1'){
                     If ( $PSCmdlet.ShouldProcess("NetFx3", "Add Windows Feature") ) {
-                        Try {$Result=& "$env:windir\system32\Dism.exe" /online /get-featureinfo /featurename:NetFx3 2>''}
+                        Try {$Result=& "$env:windir\system32\Dism.exe" /English /NoRestart /Online /Enable-Feature /FeatureName:NetFx3 2>''}
                         Catch {Write-Output "Error calling Dism.exe."; $Result=$Null}
-                        If ($Result -contains "State : Enabled"){
-                            # also check reboot status, unsure of possible outputs
-                            # Restart Required : Possible
+                        Try {$Result=& "$env:windir\system32\Dism.exe" /English /Online /Get-FeatureInfo /FeatureName:NetFx3 2>''}
+                        Catch {Write-Output "Error calling Dism.exe."; $Result=$Null}
+                        If ($Result -contains 'State : Enabled'){
                             Write-Warning "WARNING: Line $(LINENUM): .Net Framework 3.5 has been installed and enabled."
-                        }
-                        Else {
-                            Write-Error "ERROR: Line $(LINENUM): .NET 3.5 install failed." -ErrorAction Continue
+                        } ElseIf ($Result -contains 'State : Enable Pending'){
+                            Write-Warning "WARNING: Line $(LINENUM): .Net Framework 3.5 installed but a reboot is needed."
+                        } Else {
+                            Write-Error "ERROR: Line $(LINENUM): .NET Framework 3.5 install failed." -ErrorAction Continue
                             If (!($Force)) { Write-Error ("ERROR: Line $(LINENUM):",$Result) -ErrorAction Stop }
                         }#End If
                     }#End If
@@ -1079,10 +1086,10 @@ Function Install-LTService{
 
             If (-not ($DotNet -like '3.5.*')){
                 If (($Force)) {
-                    If ($DotNet -like '2.0.*'){
+                    If ($DotNet -match '(?m)^[2-4].\d'){
                         Write-Error "ERROR: Line $(LINENUM): .NET 3.5 is not detected and could not be installed." -ErrorAction Continue
                     } Else {
-                        Write-Error "ERROR: Line $(LINENUM): .NET 2.0 is not detected and could not be installed." -ErrorAction Stop
+                        Write-Error "ERROR: Line $(LINENUM): .NET 2.0 or greater is not detected and could not be installed." -ErrorAction Stop
                     }#End If
                 } Else {
                     Write-Error "ERROR: Line $(LINENUM): .NET 3.5 is not detected and could not be installed." -ErrorAction Stop
