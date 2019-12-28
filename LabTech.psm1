@@ -89,10 +89,11 @@ Add-Type -Debug:$False @"
     }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-#Enable TLS, TLS1.1, TLS1.2 in this session if they are available
+#Enable TLS, TLS1.1, TLS1.2, TLS1.3 in this session if they are available
 IF([Net.SecurityProtocolType]::Tls) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls}
 IF([Net.SecurityProtocolType]::Tls11) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls11}
 IF([Net.SecurityProtocolType]::Tls12) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12}
+IF([Net.SecurityProtocolType]::Tls13) {[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls13}
 
 #region [Functions]-------------------------------------------------------------
 
@@ -674,7 +675,7 @@ Function Uninstall-LTService{
         If (-not ($Server)){
             $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
         }
-        $Server=ForEach ($Svr in $Server) {$Svr; If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}}
+        $Server=ForEach ($Svr in $Server) {If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}; $Svr}
         ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
                 If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
@@ -1111,7 +1112,7 @@ Function Install-LTService{
         If (-not ($TrayPort) -or -not ($TrayPort -ge 1 -and $TrayPort -le 65535)){
             $TrayPort = "42000"
         }
-        $Server=ForEach ($Svr in $Server) {$Svr; If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}}
+        $Server=ForEach ($Svr in $Server) {If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}; $Svr}
         ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
                 If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
@@ -1587,6 +1588,7 @@ Function Update-LTService{
             }
         }
 
+        $Server=ForEach ($Svr in $Server) {If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}; $Svr}
         Foreach ($Svr in $Server) {
             If (-not ($GoodServer)) {
                 If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
