@@ -21,7 +21,7 @@ This function will install the LabTech agent on the machine with the specified s
 
 ### EXAMPLE 1
 ```powershell
-PS C:\>Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
+PS C:\>Install-LTService -Server https://lt.domain.com -Password 'plain text pass' -LocationID 42
 
 This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 ```

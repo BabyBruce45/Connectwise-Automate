@@ -691,14 +691,7 @@ Function Uninstall-LTService{
                             Write-Verbose "Unable to test version response from $($Svr)."
                             Continue
                         }
-                        If ([System.Version]$SVer -ge [System.Version]'110.374') {
-                            #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
-                            $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi"
-                        } Else {
-                            #Original Generic Installer URL - Yes, these both reference Location 1 and are thus the same. Will it change in Patch 14? This section is now ready.
-                            Write-Warning 'Update your damn server!'
-                            $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi"
-                        }
+                        $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi"
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         If (($Script:LTProxy.Enabled) -eq $True) {
                             Write-Debug "Line $(LINENUM): Proxy Configuration Needed. Applying Proxy Settings to request."
@@ -945,7 +938,7 @@ Function Install-LTService{
     The function will exit once the installer has completed.
 
 .EXAMPLE
-    Install-LTService -Server https://lt.domain.com -Password sQWZzEDYKFFnTT0yP56vgA== -LocationID 42
+    Install-LTService -Server https://lt.domain.com -Password 'plain text pass' -LocationID 42
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
@@ -997,6 +990,12 @@ Function Install-LTService{
     Update Date: 12/28/2019
     Purpose/Change: Handle .NET 3.5 in pending state, accept .NET 4.0+ or higher with -Force parameter
 
+    Update Date: 6/10/2020
+    Purpose/Change: Remove Deployment.aspx dependance
+
+    Update Date: 6/11/2020
+    Purpose/Change: Update to work with or without Deployment.aspx
+
 .LINK
     http://labtechconsulting.com
 #>
@@ -1004,7 +1003,8 @@ Function Install-LTService{
     Param(
         [Parameter(ValueFromPipelineByPropertyName = $true, Mandatory=$True)]
         [string[]]$Server,
-        [Parameter(ValueFromPipelineByPropertyName = $True, Mandatory=$True)]
+        [Parameter(ValueFromPipelineByPropertyName = $True)]
+        [AllowNull()]
         [Alias("Password")]
         [string]$ServerPassword,
         [Parameter(ValueFromPipelineByPropertyName = $True)]
@@ -1136,24 +1136,31 @@ Function Install-LTService{
                         }
                         If ([System.Version]$SVer -ge [System.Version]'110.374') {
                             #New Style Download Link starting with LT11 Patch 13 - Direct Location Targeting is no longer available
-                            $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi"
+                            $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=1"
                         } Else {
                             #Original URL
                             Write-Warning 'Update your damn server!'
-                            $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi"
+                            $installer = "$($Svr)/Labtech/Deployment.aspx?Probe=1&installType=msi&MSILocations=$LocationID"
                         }
+
                         # Vuln test June 10, 2020: ConnectWise Automate API Vulnerability
-                        try{
+                        Try{
                             $HTTP_Request = [System.Net.WebRequest]::Create("$($Svr)/Labtech/Deployment.aspx")
-                            if ($HTTP_Request.GetResponse().StatusCode -eq 'OK') {
-                                $Message = @('Your server is vulnerable!!')
-                                $Message += 'https://docs.connectwise.com/ConnectWise_Automate/ConnectWise_Automate_Supportability_Statements/Supportability_Statement%3A_ConnectWise_Automate_Mitigation_Steps'
-                                Write-Warning $($Message | Out-String)
+                            If ($HTTP_Request.GetResponse().StatusCode -eq 'OK') {
+                                If ([System.Version]$SVer -lt [System.Version]'200.197') {
+                                    $Message = @('Your server is vulnerable!!')
+                                    $Message += 'https://docs.connectwise.com/ConnectWise_Automate/ConnectWise_Automate_Supportability_Statements/Supportability_Statement%3A_ConnectWise_Automate_Mitigation_Steps'
+                                    Write-Warning $($Message | Out-String)
+                                }
                             }
                         }
-                        catch {
-                            # mitigated
+                        Catch {
+                            If (!$ServerPassword) {
+                                Write-Error 'ServerPassword needed.'
+                                Break
+                            }
                         }
+                        If ($ServerPassword) { $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi" }
 
                         $installerTest = [System.Net.WebRequest]::Create($installer)
                         If (($Script:LTProxy.Enabled) -eq $True) {
