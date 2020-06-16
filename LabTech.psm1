@@ -1520,9 +1520,10 @@ Function Redo-LTService{
 
         If (($ServerPassword)){
             $PasswordArg = "-Password '$ServerPassword'"
+            $PasswordPresent = "-Password 'REDACTED'"
         }
 
-        Write-Output "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID $RenameArg"
+        Write-Output "Reinstalling LabTech with the following information, -Server $($ServerList -join ',') $PasswordPresent -LocationID $LocationID $RenameArg"
         Write-Verbose "Starting: Uninstall-LTService -Server $($ServerList -join ',')"
         Try{
             Uninstall-LTService -Server $ServerList -ErrorAction Stop -Force
@@ -1539,7 +1540,7 @@ Function Redo-LTService{
             }
         }
 
-        Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordArg -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
+        Write-Verbose "Starting: Install-LTService -Server $($ServerList -join ',') $PasswordPresent -LocationID $LocationID -Hide:`$$($Hide) $RenameArg"
         Try{
             Install-LTService -Server $ServerList -ServerPassword $ServerPassword -LocationID $LocationID -Hide:$Hide -Rename $Rename -SkipDotNet:$SkipDotNet -Force
         }#End Try
