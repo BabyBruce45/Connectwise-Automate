@@ -3642,3 +3642,16 @@ If (($MyInvocation.Line -match 'Import-Module' -or $MyInvocation.MyCommand -matc
 }
 
 $Null=Initialize-LTServiceModule
+
+#SneakyRun - Save as FUNCTION.ps1 and call FUNCTION.ps1, and it will be treated as if you called FUNCTION directly.
+#Maybe it's not that special. You can dot-source the script and call any function directly.  
+#Example: Name it "Install-LTService.ps1", then you can call it as the file and it will run that function.
+if ($PSCommandPath -like '*.ps1' -and $PSCommandPath -like "*$($MyInvocation.MyCommand)") {
+    $LabTechFunction=$MyInvocation.MyCommand.ToString() -replace '\.ps1',''
+    If ($PublicFunctions -contains $LabTechFunction) {
+        Write-Debug "Script Name $LabTechFunction.ps1 matches a defined function. Calling $LabTechFunction $($args|ConvertTo-JSON -Depth 1 -Compress)"
+        & $LabTechFunction @args
+    } Else {
+        Write-Debug "Script Name $LabTechFunction.ps1 does not match a defined function for this module."
+    }
+}
