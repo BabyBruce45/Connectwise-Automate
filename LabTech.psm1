@@ -11,7 +11,7 @@
     Tested Versions: v10.5, v11, v12, v2019
 
 .NOTES
-    Version:        1.7
+    Version:        1.8
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -40,7 +40,7 @@ if (-not ($PSVersionTable)) {Write-Warning 'PS1 Detected. PowerShell Version 2.0
 if (-not ($PSVersionTable) -or $PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. PowerShell Version 3.0 or higher may be required for full functionality.'}
 
 #Module Version
-$ModuleVersion = "1.7"
+$ModuleVersion = "1.8"
 $ModuleGuid='f1f06c84-00c8-11ea-b6e8-000c29aaa7df'
 
 If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
@@ -945,7 +945,7 @@ Function Install-LTService{
     This will install the LabTech agent using the provided Server URL, Password, and LocationID.
 
 .NOTES
-    Version:        2.0
+    Version:        2.1
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -1446,7 +1446,7 @@ Function Redo-LTService{
     This will ReInstall the LabTech agent using the provided server URL to download the installation files.
 
 .NOTES
-    Version:        1.5
+    Version:        1.6
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
