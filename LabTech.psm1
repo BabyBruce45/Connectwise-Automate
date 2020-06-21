@@ -1125,7 +1125,7 @@ Function Install-LTService{
     }#End Begin
 
     Process{
-        If (-not ($LocationID)){
+        If (-not ($LocationID -or $PSCmdlet.ParameterSetName -eq 'installertoken')){
             $LocationID = "1"
         }
         If (-not ($TrayPort) -or -not ($TrayPort -ge 1 -and $TrayPort -le 65535)){
@@ -1252,9 +1252,6 @@ Function Install-LTService{
     }#End Process
 
     End{
-        If (($ServerPassword)){
-            $PasswordArg = "SERVERPASS=$ServerPassword"
-        }
         If ($GoodServer) {
 
             If ( $WhatIfPreference -eq $True -and (Get-PSCallStack)[1].Command -eq 'Redo-LTService' ) {
@@ -1287,7 +1284,15 @@ Function Install-LTService{
                 Write-Output "Starting Install."
             }#End If
 
-            $iarg = "/i ""${env:windir}\temp\LabTech\Installer\Agent_Install.msi"" SERVERADDRESS=$GoodServer $PasswordArg LOCATION=$LocationID SERVICEPORT=$TrayPort /qn /l ""$logpath\$logfile.log"""
+            #Build parameter string
+            $iarg =(@(
+                "/i `"${env:windir}\temp\LabTech\Installer\Agent_Install.msi`"",
+                "SERVERADDRESS=$GoodServer",
+                $(If ($ServerPassword -and $ServerPassword -match '.') {"SERVERPASS=""$ServerPassword"""} Else {""}),
+                $(If ($LocationID -and $LocationID -match '^\d+$') {"LOCATION=$LocationID"} Else {""}),
+                $(If ($TrayPort -and $TrayPort -ne 42000) {"SERVICEPORT=$TrayPort"} Else {""}),
+                "/qn",
+                "/l ""$logpath\$logfile.log""") | Where-Object {$_}) -join ' '
 
             Try{
                 If ( $PSCmdlet.ShouldProcess("msiexec.exe $($iarg)", "Execute Install") ) {
@@ -1306,8 +1311,8 @@ Function Install-LTService{
                         $InstallAttempt++
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
                         If ($svcRun -eq 0) {
-                            Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg))"
-                            Start-Process -Wait -FilePath "${env:windir}\system32\msiexec.exe" -ArgumentList $iarg -WorkingDirectory ${env:TEMP}
+                            Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg -join ''))"
+                            Start-Process -Wait -FilePath "${env:windir}\system32\msiexec.exe" -ArgumentList $iarg  -WorkingDirectory ${env:TEMP}
                             Start-Sleep 5
                         }
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
