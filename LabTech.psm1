@@ -547,7 +547,7 @@ Function Uninstall-LTService{
     This will uninstall the LabTech agent using the provided server URL to download the uninstallers.
 
 .NOTES
-    Version:        1.8
+    Version:        1.9
     Author:         Chris Taylor
     Website:        labtechconsulting.com
     Creation Date:  3/14/2016
@@ -584,6 +584,9 @@ Function Uninstall-LTService{
 
     Update Date: 2/28/2019
     Purpose/Change: Update to try both http and https method if not specified for Server
+
+    Update Date: 6/22/2020
+    Purpose/Change: Use unique pathname for Uninstall MSI
 
 .LINK
     http://labtechconsulting.com
@@ -622,7 +625,10 @@ Function Uninstall-LTService{
         }#End If
 
         $BasePath = $(Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand BasePath -EA 0)
-        If (-not ($BasePath)) {$BasePath = "$env:windir\LTSVC"}
+        If (-not ($BasePath)) {$BasePath = "${env:windir}\LTSVC"}
+        $UninstallBase="${env:WINDIR}\Temp"
+        $UninstallEXE='Agent_Uninstall.exe'
+        $UninstallMSI='RemoteAgent.msi'
 
         New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue -WhatIf:$False -Confirm:$False -Debug:$False| Out-Null
         $regs = @( 'Registry::HKEY_LOCAL_MACHINE\Software\LabTechMSP',
@@ -659,13 +665,15 @@ Function Uninstall-LTService{
             'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F'
         )
 
+<#
         If ($WhatIfPreference -ne $True) {
             #Cleanup previous uninstallers
             Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue -Force -Confirm:$False
             New-Item "$env:windir\temp\LabTech\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
         }#End If
+#>
 
-        $xarg = "/x ""$($env:windir)\temp\LabTech\Installer\Agent_Install.msi"" /qn"
+        $xarg = "/x ""$UninstallBase\$UninstallMSI"" /qn"
     }#End Begin
 
     Process{
@@ -702,17 +710,17 @@ Function Uninstall-LTService{
                         $installerResult = $installerTest.GetResponse()
                         $installerTest.Abort()
                         If ($installerResult.StatusCode -ne 200) {
-                            Write-Warning "WARNING: Line $(LINENUM): Unable to download Agent_Install.msi from server $($Svr)."
+                            Write-Warning "WARNING: Line $(LINENUM): Unable to download $UninstallMSI from server $($Svr)."
                             Continue
                         }
                         Else {
                             If ($PSCmdlet.ShouldProcess("$installer", "DownloadFile")) {
-                                Write-Debug "Line $(LINENUM): Downloading Agent_Install.msi from $installer"
-                                $Script:LTServiceNetWebClient.DownloadFile($installer,"$env:windir\temp\LabTech\Installer\Agent_Install.msi")
-                                If ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi")) {
-                                    If (!((Get-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
-                                        Write-Warning "WARNING: Line $(LINENUM): Agent_Install.msi size is below normal. Removing suspected corrupt file."
-                                        Remove-Item "$env:windir\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                Write-Debug "Line $(LINENUM): Downloading $UninstallMSI from $installer"
+                                $Script:LTServiceNetWebClient.DownloadFile($installer,"$UninstallBase\$UninstallMSI")
+                                If ((Test-Path "$UninstallBase\$UninstallMSI")) {
+                                    If (!((Get-Item "$UninstallBase\$UninstallMSI" -EA 0).length/1KB -gt 1234)) {
+                                        Write-Warning "WARNING: Line $(LINENUM): $UninstallMSI size is below normal. Removing suspected corrupt file."
+                                        Remove-Item "$UninstallBase\$UninstallMSI" -ErrorAction SilentlyContinue -Force -Confirm:$False
                                         Continue
                                     } Else {
                                         $AlternateServer = $Svr
@@ -742,20 +750,20 @@ Function Uninstall-LTService{
                             Write-Warning "WARNING: Line $(LINENUM): Unable to download Agent_Uninstall from server."
                             Continue
                         } Else {
-                            #Download Agent_Uninstall.exe
+                            #Download $UninstallEXE
                             If ($PSCmdlet.ShouldProcess("$uninstaller", "DownloadFile")) {
-                                Write-Debug "Line $(LINENUM): Downloading Agent_Uninstall.exe from $uninstaller"
-                                $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$($env:windir)\temp\Agent_Uninstall.exe")
-                                If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe") -and !((Get-Item "$($env:windir)\temp\Agent_Uninstall.exe" -EA 0).length/1KB -gt 80)) {
-                                    Write-Warning "WARNING: Line $(LINENUM): Agent_Uninstall.exe size is below normal. Removing suspected corrupt file."
-                                    Remove-Item "$($env:windir)\temp\Agent_Uninstall.exe" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                                Write-Debug "Line $(LINENUM): Downloading $UninstallEXE from $uninstaller"
+                                $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$UninstallBase\$UninstallEXE")
+                                If ((Test-Path "$UninstallBase\$UninstallEXE") -and !((Get-Item "$UninstallBase\$UninstallEXE" -EA 0).length/1KB -gt 80)) {
+                                    Write-Warning "WARNING: Line $(LINENUM): $UninstallEXE size is below normal. Removing suspected corrupt file."
+                                    Remove-Item "$UninstallBase\$UninstallEXE" -ErrorAction SilentlyContinue -Force -Confirm:$False
                                     Continue
                                 }#End If
                             }#End If
                         }#End If
                         If ($WhatIfPreference -eq $True) {
                             $GoodServer = $Svr
-                        } ElseIf ((Test-Path "$env:windir\temp\LabTech\Installer\Agent_Install.msi") -and (Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
+                        } ElseIf ((Test-Path "$UninstallBase\$UninstallMSI") -and (Test-Path "$UninstallBase\$UninstallEXE")) {
                             $GoodServer = $Svr
                             Write-Verbose "Successfully downloaded files from $($Svr)."
                         } Else {
@@ -805,26 +813,26 @@ Function Uninstall-LTService{
                 }#End If
 
                 If ($PSCmdlet.ShouldProcess("msiexec.exe $($xarg)", "Execute MSI Uninstall")) {
-                    If ((Test-Path "$($env:windir)\temp\LabTech\Installer\Agent_Install.msi")) {
+                    If ((Test-Path "$UninstallBase\$UninstallMSI")) {
                         #Run MSI uninstaller for current installation
                         Write-Verbose "Launching MSI Uninstall."
                         Write-Debug "Line $(LINENUM): Executing Command ""msiexec.exe $($xarg)"""
-                        Start-Process -Wait -FilePath "$env:windir\system32\msiexec.exe" -ArgumentList $xarg -WorkingDirectory $env:TEMP
+                        Start-Process -Wait -FilePath "${env:windir}\system32\msiexec.exe" -ArgumentList $xarg -WorkingDirectory $UninstallBase
                         Start-Sleep -Seconds 5
                     } Else {
-                        Write-Verbose "WARNING: $($env:windir)\temp\LabTech\Installer\Agent_Install.msi was not found."
+                        Write-Verbose "WARNING: $UninstallBase\$UninstallMSI was not found."
                     }
                 }#End If
 
-                If ($PSCmdlet.ShouldProcess("$($env:windir)\temp\Agent_Uninstall.exe", "Execute Agent Uninstall")) {
-                    If ((Test-Path "$($env:windir)\temp\Agent_Uninstall.exe")) {
-                        #Run Agent_Uninstall.exe
+                If ($PSCmdlet.ShouldProcess("$UninstallBase\$UninstallEXE", "Execute Agent Uninstall")) {
+                    If ((Test-Path "$UninstallBase\$UninstallEXE")) {
+                        #Run $UninstallEXE
                         Write-Verbose "Launching Agent Uninstaller"
-                        Write-Debug "Line $(LINENUM): Executing Command ""$($env:windir)\temp\Agent_Uninstall.exe"""
-                        Start-Process -Wait -FilePath "$($env:windir)\temp\Agent_Uninstall.exe" -WorkingDirectory $env:TEMP
+                        Write-Debug "Line $(LINENUM): Executing Command ""$UninstallBase\$UninstallEXE"""
+                        Start-Process -Wait -FilePath "$UninstallBase\$UninstallEXE" -WorkingDirectory $UninstallBase
                         Start-Sleep -Seconds 5
                     } Else {
-                        Write-Verbose "WARNING: $($env:windir)\temp\Agent_Uninstall.exe was not found."
+                        Write-Verbose "WARNING: $UninstallBase\$UninstallEXE was not found."
                     }
                 }#End If
 
