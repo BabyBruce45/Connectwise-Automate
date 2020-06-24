@@ -665,14 +665,6 @@ Function Uninstall-LTService{
             'HKU:\*\Software\Microsoft\Installer\Products\C4D064F3712D4B64086B5BDE05DBC75F'
         )
 
-<#
-        If ($WhatIfPreference -ne $True) {
-            #Cleanup previous uninstallers
-            Remove-Item 'Uninstall.exe','Uninstall.exe.config' -ErrorAction SilentlyContinue -Force -Confirm:$False
-            New-Item "$env:windir\temp\LabTech\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
-        }#End If
-#>
-
         $xarg = "/x ""$UninstallBase\$UninstallMSI"" /qn"
     }#End Begin
 
@@ -900,6 +892,12 @@ Function Uninstall-LTService{
         } ElseIf ($WhatIfPreference -ne $True) {
             Write-Error "ERROR: Line $(LINENUM): No valid server was reached to use for the uninstall." -ErrorAction Stop
         }#End If
+
+        If ($WhatIfPreference -ne $True) {
+            #Cleanup uninstall files
+            Remove-Item "$UninstallBase\$UninstallEXE","$UninstallBase\$UninstallMSI" -ErrorAction SilentlyContinue -Force -Confirm:$False
+        }#End If
+
         Write-Debug "Exiting $($myInvocation.InvocationName) at line $(LINENUM)"
     }#End End
 }#End Function Uninstall-LTService
@@ -1117,11 +1115,12 @@ Function Install-LTService{
             }#End If
         }#End If
 
-        $logpath = [System.Environment]::ExpandEnvironmentVariables("%windir%\temp\LabTech")
+        $InstallBase="${env:WINDIR}\Temp\LabTech"
+        $InstallMSI='Agent_Install.msi'
         $logfile = "LTAgentInstall"
-        $curlog = "$($logpath)\$($logfile).log"
-        If (-not (Test-Path -PathType Container -Path "$logpath\Installer" )){
-            New-Item "$logpath\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
+        $curlog = "$($InstallBase)\$($logfile).log"
+        If (-not (Test-Path -PathType Container -Path "$InstallBase\Installer" )){
+            New-Item "$InstallBase\Installer" -type directory -ErrorAction SilentlyContinue | Out-Null
         }#End if
         If ((Test-Path -PathType Leaf -Path $($curlog))){
             If ($PSCmdlet.ShouldProcess("$($curlog)","Rotate existing log file")){
@@ -1226,20 +1225,20 @@ Function Install-LTService{
                         }#End If
                         #>
                         If ( $PSCmdlet.ShouldProcess($installer, "DownloadFile") ) {
-                            Write-Debug "Line $(LINENUM): Downloading Agent_Install.msi from $installer"
-                            $Script:LTServiceNetWebClient.DownloadFile($installer,"${env:windir}\temp\LabTech\Installer\Agent_Install.msi")
-                            If((Test-Path "${env:windir}\temp\LabTech\Installer\Agent_Install.msi") -and  !((Get-Item "${env:windir}\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
-                                Write-Warning "WARNING: Line $(LINENUM): Agent_Install.msi size is below normal. Removing suspected corrupt file."
-                                Remove-Item "${env:windir}\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
+                            Write-Debug "Line $(LINENUM): Downloading $InstallMSI from $installer"
+                            $Script:LTServiceNetWebClient.DownloadFile($installer,"$InstallBase\Installer\$InstallMSI")
+                            If((Test-Path "$InstallBase\Installer\$InstallMSI") -and  !((Get-Item "$InstallBase\Installer\$InstallMSI" -EA 0).length/1KB -gt 1234)) {
+                                Write-Warning "WARNING: Line $(LINENUM): $InstallMSI size is below normal. Removing suspected corrupt file."
+                                Remove-Item "$InstallBase\Installer\$InstallMSI" -ErrorAction SilentlyContinue -Force -Confirm:$False
                                 Continue
                             }#End If
                         }#End If
 
                         If ($WhatIfPreference -eq $True) {
                             $GoodServer = $Svr
-                        } ElseIf (Test-Path "${env:windir}\temp\LabTech\Installer\Agent_Install.msi") {
+                        } ElseIf (Test-Path "$InstallBase\Installer\$InstallMSI") {
                             $GoodServer = $Svr
-                            Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
+                            Write-Verbose "$InstallMSI downloaded successfully from server $($Svr)."
                         } Else {
                             Write-Warning "WARNING: Line $(LINENUM): Error encountered downloading from $($Svr). No installation file was received."
                             Continue
@@ -1294,13 +1293,13 @@ Function Install-LTService{
 
             #Build parameter string
             $iarg =(@(
-                "/i `"${env:windir}\temp\LabTech\Installer\Agent_Install.msi`"",
+                "/i `"$InstallBase\Installer\$InstallMSI`"",
                 "SERVERADDRESS=$GoodServer",
                 $(If ($ServerPassword -and $ServerPassword -match '.') {"SERVERPASS=""$ServerPassword"""} Else {""}),
                 $(If ($LocationID -and $LocationID -match '^\d+$') {"LOCATION=$LocationID"} Else {""}),
                 $(If ($TrayPort -and $TrayPort -ne 42000) {"SERVICEPORT=$TrayPort"} Else {""}),
                 "/qn",
-                "/l ""$logpath\$logfile.log""") | Where-Object {$_}) -join ' '
+                "/l ""$InstallBase\$logfile.log""") | Where-Object {$_}) -join ' '
 
             Try{
                 If ( $PSCmdlet.ShouldProcess("msiexec.exe $($iarg)", "Execute Install") ) {
@@ -1378,6 +1377,11 @@ Function Install-LTService{
                 Return
             }#End Catch
 
+            If ($WhatIfPreference -ne $True) {
+                #Cleanup Install file
+                Remove-Item "$InstallBase\Installer\$InstallMSI" -ErrorAction SilentlyContinue -Force -Confirm:$False
+            }#End If
+
             If ( $WhatIfPreference -ne $True ) {
                 $tmpLTSI = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
                 If (($tmpLTSI)) {
@@ -1390,10 +1394,10 @@ Function Install-LTService{
                     }#End If
                 } Else {
                     If (($Error)) {
-                        Write-Error "ERROR: Line $(LINENUM): There was an error installing LabTech. Check the log, ${env:windir}\temp\LabTech\LTAgentInstall.log $($Error[0])"
+                        Write-Error "ERROR: Line $(LINENUM): There was an error installing LabTech. Check the log, $InstallBase\$logfile.log $($Error[0])"
                         Return
                     } ElseIf (!($NoWait)) {
-                        Write-Error "ERROR: Line $(LINENUM): There was an error installing LabTech. Check the log, ${env:windir}\temp\LabTech\LTAgentInstall.log"
+                        Write-Error "ERROR: Line $(LINENUM): There was an error installing LabTech. Check the log, $InstallBase\$logfile.log"
                         Return
                     } Else {
                         Write-Warning "WARNING: Line $(LINENUM): LabTech installation may not have succeeded." -WarningAction Continue
