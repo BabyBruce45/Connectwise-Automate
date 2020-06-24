@@ -3118,6 +3118,7 @@ Function ConvertFrom-LTSecurity{
 .LINK
     http://labtechconsulting.com
 #>
+[CmdletBinding(SupportsShouldProcess=$True)]
 Param(
     [parameter(Mandatory = $true, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Position = 1)]
     [string[]]$InputString,
@@ -3215,22 +3216,25 @@ Function ConvertTo-LTSecurity{
     This is the key used for encoding. If not provided, a default value will be used.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Darren White
     Creation Date:  1/25/2018
     Purpose/Change: Initial function development
 
+    Update Date: 6/23/2020
+    Purpose/Change: Support for pipeline input
+
 .LINK
     http://labtechconsulting.com
 #>
+[CmdletBinding(SupportsShouldProcess=$True)]
 Param(
-    [parameter(Mandatory = $true, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
+    [parameter(Mandatory = $true, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $true, Position = 1)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
     [string]$InputString,
-
-    [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
+    [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $true)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
@@ -3240,35 +3244,43 @@ Param(
     Begin {
         $_initializationVector = [byte[]](240, 3, 45, 29, 0, 76, 173, 59)
         $DefaultKey='Thank you for using LabTech.'
-
-        If ($Null -eq $Key) {
-            $Key=$DefaultKey
-        }#End If
-
-        try {
-            $numarray=[System.Text.Encoding]::UTF8.GetBytes($InputString)
-        } catch {
-            try { $numarray=[System.Text.Encoding]::ASCII.GetBytes($InputString) } catch {}
-        }
-        Write-Debug "Line $(LINENUM): Attempting Encode for '$($testInput)' with Key '$($testKey)'"
-        try {
-            $ddd = new-object System.Security.Cryptography.TripleDESCryptoServiceProvider
-            $ddd.key=(new-Object Security.Cryptography.MD5CryptoServiceProvider).ComputeHash([Text.Encoding]::UTF8.GetBytes($Key))
-            $ddd.IV=$_initializationVector
-            $dd=$ddd.CreateEncryptor()
-            $str=[System.Convert]::ToBase64String($dd.TransformFinalBlock($numarray,0,($numarray.Length)))
-        }
-        catch {
-            Write-Debug "Line $(LINENUM): Failed to Encode string: '$($InputString)'"
-            $str=''
-        }
-        Finally
-        {
-            if ($dd) {try {$dd.Dispose()} catch {$dd.Clear()}}
-            if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
-        }
-        return $str
+        $str=@()
     }#End Begin
+
+    Process {
+        foreach ($testInput in $InputString) {
+            If ($Null -eq $Key) {
+                $Key=$DefaultKey
+            }#End If
+
+            try {
+                $numarray=[System.Text.Encoding]::UTF8.GetBytes($testInput)
+            } catch {
+                try { $numarray=[System.Text.Encoding]::ASCII.GetBytes($testInput) } catch {}
+            }
+            Write-Debug "Line $(LINENUM): Attempting Encode for '$($testInput)' with Key '$($Key)'"
+            try {
+                $ddd = new-object System.Security.Cryptography.TripleDESCryptoServiceProvider
+                $ddd.key=(new-Object Security.Cryptography.MD5CryptoServiceProvider).ComputeHash([Text.Encoding]::UTF8.GetBytes($Key))
+                $ddd.IV=$_initializationVector
+                $dd=$ddd.CreateEncryptor()
+                $str+=[System.Convert]::ToBase64String($dd.TransformFinalBlock($numarray,0,($numarray.Length)))
+            }
+            catch {
+                Write-Debug "Line $(LINENUM): Failed to Encode string: '$($InputString)'"
+                $str+=''
+            }
+            Finally
+            {
+                if ($dd) {try {$dd.Dispose()} catch {$dd.Clear()}}
+                if ($ddd) {try {$ddd.Dispose()} catch {$ddd.Clear()}}
+            }
+        }#End ForEach
+    }#End Process
+
+    End {
+        return $str
+    }#End End
 }#End Function ConvertTo-LTSecurity
 
 Function Set-LTProxy{
