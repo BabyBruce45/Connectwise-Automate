@@ -1023,7 +1023,7 @@ Function Install-LTService{
         [Alias("Password")]
         [string]$ServerPassword,
         [Parameter(ParameterSetName = 'installertoken')]
-        [ValidatePattern('(?s-i:^[0-9a-f]+$)')]
+        [ValidatePattern('(?s:^[0-9a-z]+$)')]
         [string]$InstallerToken,
         [Parameter(ValueFromPipelineByPropertyName = $True)]
         [AllowNull()]
@@ -1508,7 +1508,7 @@ Function Redo-LTService{
         [Alias("Password")]
         [string]$ServerPassword,
         [Parameter(ParameterSetName = 'installertoken')]
-        [ValidatePattern('(?s-i:^[0-9a-f]+$)')]
+        [ValidatePattern('(?s:^[0-9a-z]+$)')]
         [string]$InstallerToken,
         [Parameter(ValueFromPipelineByPropertyName = $True)]
         [AllowNull()]
