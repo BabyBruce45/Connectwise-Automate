@@ -3229,16 +3229,16 @@ Function ConvertTo-LTSecurity{
 #>
 [CmdletBinding(SupportsShouldProcess=$True)]
 Param(
-    [parameter(Mandatory = $true, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $true, Position = 1)]
+    [parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 1)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
-    [string]$InputString,
+    [string[]]$InputString,
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $true)]
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
-    $Key
+    [string]$Key
 )
 
     Begin {
