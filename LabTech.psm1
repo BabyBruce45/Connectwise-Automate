@@ -3113,7 +3113,9 @@ Param(
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $True)]
     [AllowNull()]
-    [string[]]$Key,
+    [AllowEmptyString()]
+    [AllowEmptyCollection()]
+    $Key = $Null,
 
     [parameter(Mandatory = $false, ValueFromPipeline = $false, ValueFromPipelineByPropertyName = $false)]
     [switch]$Force=$True
@@ -3226,7 +3228,7 @@ Param(
     [AllowNull()]
     [AllowEmptyString()]
     [AllowEmptyCollection()]
-    [string]$Key
+    $Key = $Null
 )
 
     Begin {
