@@ -3098,10 +3098,13 @@ Function ConvertFrom-LTSecurity{
     This forces the function to try alternate key values if decoding fails using provided key.
 
 .NOTES
-    Version:        1.1
+    Version:        1.2
     Author:         Darren White
     Creation Date:  1/25/2018
     Purpose/Change: Initial function development
+
+    Update Date: 6/25/2020
+    Purpose/Change: Improved pipeline and parameter handling
 
 .LINK
     http://labtechconsulting.com
@@ -3212,8 +3215,8 @@ Function ConvertTo-LTSecurity{
     Purpose/Change: Initial function development
 
     Update Date: 6/23/2020
-    Purpose/Change: Support for pipeline input
-
+    Purpose/Change: Improved pipeline and parameter handling
+    
 .LINK
     http://labtechconsulting.com
 #>
