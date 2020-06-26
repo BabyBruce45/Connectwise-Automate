@@ -1301,7 +1301,7 @@ Function Install-LTService{
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
                         If ($svcRun -eq 0) {
                             Write-Verbose "Launching Installation Process: msiexec.exe $(($iarg -join ''))"
-                            Start-Process -Wait -FilePath "${env:windir}\system32\msiexec.exe" -ArgumentList $iarg  -WorkingDirectory ${env:TEMP}
+                            Start-Process -Wait -FilePath "${env:windir}\system32\msiexec.exe" -ArgumentList $iarg -WorkingDirectory ${env:TEMP}
                             Start-Sleep 5
                         }
                         $svcRun = ('LTService') | Get-Service -EA 0 | Measure-Object | Select-Object -Expand Count
@@ -1359,7 +1359,7 @@ Function Install-LTService{
                 Return
             }#End Catch
 
-            If ($WhatIfPreference -ne $True ) {
+            If ($WhatIfPreference -ne $True) {
                 #Cleanup Install files
                 Remove-Item "$InstallBase\Installer\$InstallMSI" -ErrorAction SilentlyContinue -Force -Confirm:$False
                 @($curlog,"${env:windir}\LTSvc\Install.log") | Foreach-Object {
