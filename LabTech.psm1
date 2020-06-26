@@ -586,7 +586,7 @@ Function Uninstall-LTService{
     Purpose/Change: Update to try both http and https method if not specified for Server
 
     Update Date: 6/22/2020
-    Purpose/Change: Use unique pathname for Uninstall MSI
+    Purpose/Change: Use unique pathname for Uninstall MSI, add Uninstaller EXE fallback
 
 .LINK
     http://labtechconsulting.com
@@ -673,9 +673,26 @@ Function Uninstall-LTService{
             $Server = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False|Select-Object -Expand 'Server' -EA 0
         }
         If (-not ($Server)){
-            $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com):'
+            $Server = Read-Host -Prompt 'Provide the URL to your LabTech server (https://lt.domain.com)'
         }
-        $Server=ForEach ($Svr in $Server) {If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}; $Svr}
+        If (-not ($Server)){
+            #Download $UninstallEXE
+            $AlternateServer=$Null
+            $uninstaller='https://s3.amazonaws.com/assets-cp/assets/Agent_Uninstall.exe'
+            If ($PSCmdlet.ShouldProcess("$uninstaller", "DownloadFile")) {
+                Write-Debug "Line $(LINENUM): Downloading $UninstallEXE from $uninstaller"
+                $Script:LTServiceNetWebClient.DownloadFile($uninstaller,"$UninstallBase\$UninstallEXE")
+                If ((Test-Path "$UninstallBase\$UninstallEXE")) {
+                    If(((Get-Item "$UninstallBase\$UninstallEXE" -EA 0).length/1KB -gt 80)) {
+                        $AlternateServer='https://s3.amazonaws.com'
+                    } Else {
+                        Write-Warning "Line $(LINENUM): $UninstallEXE size is below normal. Removing suspected corrupt file."
+                        Remove-Item "$UninstallBase\$UninstallEXE" -ErrorAction SilentlyContinue -Force -Confirm:$False   
+                    }#End If
+                }#End If
+            }#End If
+        }
+        $Server=ForEach ($Svr in $Server) {If (($Svr)) {If ($Svr -notmatch 'https?://.+') {"https://$($Svr)"}; $Svr}}
         ForEach ($Svr in $Server) {
             If (-not ($GoodServer)) {
                 If ($Svr -match '^(https?://)?(([12]?[0-9]{1,2}\.){3}[12]?[0-9]{1,2}|[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*)$') {
@@ -767,7 +784,7 @@ Function Uninstall-LTService{
                         Write-Warning "WARNING: Line $(LINENUM): Error encountered downloading from $($Svr)."
                         Continue
                     }
-                } Else {
+                } ElseIf ($Svr) {
                     Write-Verbose "Server address $($Svr) is not formatted correctly. Example: https://lt.domain.com"
                 }#End If
             } Else {
@@ -1006,7 +1023,9 @@ Function Install-LTService{
     Purpose/Change: Update to work with or without Deployment.aspx
 
     Update Date: 6/20/2020
-    Purpose/Change: Update to support installer tokens for MSI download.
+    Purpose/Change: Added -InstallerToken parameter. Added Installer cleanup.
+    Allows for MSI download and installation without -ServerPassword parameter
+    Remove unprotected references to the Server Password
 
 .LINK
     http://labtechconsulting.com
@@ -1124,9 +1143,10 @@ Function Install-LTService{
         }#End if
         If ((Test-Path -PathType Leaf -Path $($curlog))){
             If ($PSCmdlet.ShouldProcess("$($curlog)","Rotate existing log file")){
-                $curlog = Get-Item -Path $curlog -EA 0
-                Rename-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -NewName "$($logfile)-$(Get-Date $($curlog|Select-Object -Expand LastWriteTime -EA 0) -Format 'yyyyMMddHHmmss').log" -Force -Confirm:$False -WhatIf:$False
-                Remove-Item -Path $($curlog|Select-Object -Expand FullName -EA 0) -Force -EA 0 -Confirm:$False -WhatIf:$False
+                Get-Item -LiteralPath $curlog -EA 0 | Where-Object {$_} | Foreach-Object {
+                    Rename-Item -Path $($_|Select-Object -Expand FullName -EA 0) -NewName "$($logfile)-$(Get-Date $($_|Select-Object -Expand LastWriteTime -EA 0) -Format 'yyyyMMddHHmmss').log" -Force -Confirm:$False -WhatIf:$False
+                    Remove-Item -Path $($_|Select-Object -Expand FullName -EA 0) -Force -EA 0 -Confirm:$False -WhatIf:$False
+                }#End Foreach-Object
             }#End If
         }#End If
     }#End Begin
@@ -1186,44 +1206,6 @@ Function Install-LTService{
                             If ($ServerPassword) { $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi" }
                         }#End If
 
-                        <# 
-                        # This installer test forces a custom agent to be built, then drops the connection.
-                        # Skipping test, will instead attempt the download and confirm that the file was successfully retrieved.
-
-                        $installerTest = [System.Net.WebRequest]::Create($installer)
-                        If (($Script:LTProxy.Enabled) -eq $True) {
-                            Write-Debug "Line $(LINENUM): Proxy Configuration Needed. Applying Proxy Settings to request."
-                            $installerTest.Proxy=$Script:LTWebProxy
-                        }#End If
-                        $installerTest.KeepAlive=$False
-                        $installerTest.ProtocolVersion = '1.0'
-                        $installerResult = $installerTest.GetResponse()
-                        $installerTest.Abort()
-                        If ($installerResult.StatusCode -ne 200) {
-                            Write-Warning "WARNING: Line $(LINENUM): Unable to download Agent_Install from server $($Svr)."
-                            Continue
-                        } Else {
-                            If ( $PSCmdlet.ShouldProcess($installer, "DownloadFile") ) {
-                                Write-Debug "Line $(LINENUM): Downloading Agent_Install.msi from $installer"
-                                $Script:LTServiceNetWebClient.DownloadFile($installer,"${env:windir}\temp\LabTech\Installer\Agent_Install.msi")
-                                If((Test-Path "${env:windir}\temp\LabTech\Installer\Agent_Install.msi") -and  !((Get-Item "${env:windir}\temp\LabTech\Installer\Agent_Install.msi" -EA 0).length/1KB -gt 1234)) {
-                                    Write-Warning "WARNING: Line $(LINENUM): Agent_Install.msi size is below normal. Removing suspected corrupt file."
-                                    Remove-Item "${env:windir}\temp\LabTech\Installer\Agent_Install.msi" -ErrorAction SilentlyContinue -Force -Confirm:$False
-                                    Continue
-                                }#End If
-                            }#End If
-
-                            If ($WhatIfPreference -eq $True) {
-                                $GoodServer = $Svr
-                            } ElseIf (Test-Path "${env:windir}\temp\LabTech\Installer\Agent_Install.msi") {
-                                $GoodServer = $Svr
-                                Write-Verbose "Agent_Install.msi downloaded successfully from server $($Svr)."
-                            } Else {
-                                Write-Warning "WARNING: Line $(LINENUM): Error encountered downloading from $($Svr). No installation file was received."
-                                Continue
-                            }#End If
-                        }#End If
-                        #>
                         If ( $PSCmdlet.ShouldProcess($installer, "DownloadFile") ) {
                             Write-Debug "Line $(LINENUM): Downloading $InstallMSI from $installer"
                             $Script:LTServiceNetWebClient.DownloadFile($installer,"$InstallBase\Installer\$InstallMSI")
@@ -1377,12 +1359,17 @@ Function Install-LTService{
                 Return
             }#End Catch
 
-            If ($WhatIfPreference -ne $True) {
-                #Cleanup Install file
+            If ($WhatIfPreference -ne $True ) {
+                #Cleanup Install files
                 Remove-Item "$InstallBase\Installer\$InstallMSI" -ErrorAction SilentlyContinue -Force -Confirm:$False
-            }#End If
+                @($curlog,"${env:windir}\LTSvc\Install.log") | Foreach-Object {
+                    If ((Test-Path -PathType Leaf -LiteralPath $($_))) {
+                        $logcontents=Get-Content -Path $_
+                        $logcontents=$logcontents -replace '(?<=PreInstallPass:[^\r\n]+? (?:result|value)): [^\r\n]+',': <REDACTED>'
+                        If ($logcontents) {Set-Content -Path $_ -Value $logcontents -Force -Confirm:$False}
+                    }#End If
+                }#End Foreach-Object
 
-            If ( $WhatIfPreference -ne $True ) {
                 $tmpLTSI = Get-LTServiceInfo -EA 0 -Verbose:$False -WhatIf:$False -Confirm:$False -Debug:$False
                 If (($tmpLTSI)) {
                     If (($tmpLTSI|Select-Object -Expand 'ID' -EA 0) -ge 1) {
@@ -1491,7 +1478,8 @@ Function Redo-LTService{
     Allows for skipping of .NET 3.5 and 2.0 framework checks for installing on OS with .NET 4.0+ already installed
 
     Update Date: 6/20/2020
-    Purpose/Change: Update to support installer tokens for MSI download.
+    Purpose/Change: Added -InstallerToken parameter.
+    Allows for MSI download and installation without -ServerPassword parameter
 
 .LINK
     http://labtechconsulting.com
