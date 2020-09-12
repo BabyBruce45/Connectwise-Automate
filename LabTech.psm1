@@ -46,44 +46,44 @@ ElseIf ($PSVersionTable.PSVersion.Major -lt 3 ) {Write-Verbose 'PS2 Detected. Po
 $ModuleVersion = "1.9.0"
 $ModuleGuid='f1f06c84-00c8-11ea-b6e8-000c29aaa7df'
 
-If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8) {
+If ($env:PROCESSOR_ARCHITEW6432 -match '64' -and [IntPtr]::Size -ne 8 -and $env:PROCESSOR_ARCHITEW6432 -ne 'ARM64') {
     Write-Warning '32-bit PowerShell session detected on 64-bit OS. Attempting to launch 64-Bit session to process commands.'
     $pshell="${env:windir}\SysNative\WindowsPowershell\v1.0\powershell.exe"
     If (!(Test-Path -Path $pshell)) {
         $pshell="${env:windir}\System32\WindowsPowershell\v1.0\powershell.exe"
+        If ($Null -eq ([System.Management.Automation.PSTypeName]'Kernel32.Wow64').Type -or $Null -eq [Kernel32.Wow64].GetMethod('Wow64DisableWow64FsRedirection')) {
+            Write-Debug 'Loading WOW64Redirection functions'
 
-            If ($Null -eq ([System.Management.Automation.PSTypeName]'Kernel32.Wow64').Type -or $Null -eq [Kernel32.Wow64].GetMethod('Wow64DisableWow64FsRedirection')) {
-                Write-Debug 'Loading WOW64Redirection functions'
-
-                Add-Type -Name Wow64 -Namespace Kernel32 -Debug:$False -MemberDefinition @"
+            Add-Type -Name Wow64 -Namespace Kernel32 -Debug:$False -MemberDefinition @"
 [DllImport("kernel32.dll", SetLastError=true)]
 public static extern bool Wow64DisableWow64FsRedirection(ref IntPtr ptr);
 
 [DllImport("kernel32.dll", SetLastError=true)]
 public static extern bool Wow64RevertWow64FsRedirection(ref IntPtr ptr);
 "@
-            }
+        }
+        Write-Verbose 'System32 path is redirected. Disabling redirection.'
+        [ref]$ptr = New-Object System.IntPtr
+        $Result = [Kernel32.Wow64]::Wow64DisableWow64FsRedirection($ptr)
+        $FSRedirectionDisabled=$True
+    }#End If
 
-            Write-Verbose 'System32 path is redirected. Disabling redirection.'
-            [ref]$ptr = New-Object System.IntPtr
-            $Result = [Kernel32.Wow64]::Wow64DisableWow64FsRedirection($ptr)
-        }#End If
-        If ($myInvocation.Line) {
-            &"$pshell" -NonInteractive -NoProfile $myInvocation.Line
-        } Elseif ($myInvocation.InvocationName) {
-            &"$pshell" -NonInteractive -NoProfile -File "$($myInvocation.InvocationName)" $args
-        } Else {
-            &"$pshell" -NonInteractive -NoProfile $myInvocation.MyCommand
-        }#End If
-        $ExitResult=$LASTEXITCODE
+    If ($myInvocation.Line) {
+        &"$pshell" -NonInteractive -NoProfile $myInvocation.Line
+    } Elseif ($myInvocation.InvocationName) {
+        &"$pshell" -NonInteractive -NoProfile -File "$($myInvocation.InvocationName)" $args
+    } Else {
+        &"$pshell" -NonInteractive -NoProfile $myInvocation.MyCommand
+    }#End If
+    $ExitResult=$LASTEXITCODE
 
-        If ($Null -ne ([System.Management.Automation.PSTypeName]'Kernel32.Wow64').Type -and $Null -ne [Kernel32.Wow64].GetMethod('Wow64DisableWow64FsRedirection') -and $FSRedirectionDisabled -eq $True) {
-            [ref]$defaultptr = New-Object System.IntPtr
-            $Result = [Kernel32.Wow64]::Wow64RevertWow64FsRedirection($defaultptr)
-            Write-Verbose 'System32 path redirection has been re-enabled.'
-        }#End If
-        Write-Warning 'Exiting 64-bit session. Module will only remain loaded in native 64-bit PowerShell environment.'
-        Exit $ExitResult
+    If ($Null -ne ([System.Management.Automation.PSTypeName]'Kernel32.Wow64').Type -and $Null -ne [Kernel32.Wow64].GetMethod('Wow64DisableWow64FsRedirection') -and $FSRedirectionDisabled -eq $True) {
+        [ref]$defaultptr = New-Object System.IntPtr
+        $Result = [Kernel32.Wow64]::Wow64RevertWow64FsRedirection($defaultptr)
+        Write-Verbose 'System32 path redirection has been re-enabled.'
+    }#End If
+    Write-Warning 'Exiting 64-bit session. Module will only remain loaded in native 64-bit PowerShell environment.'
+    Exit $ExitResult
 }#End If
 
 #Ignore SSL errors
@@ -1211,8 +1211,8 @@ Function Install-LTService{
                             }
                             Catch {
                                 If (!$ServerPassword) {
-                                    Write-Error 'ServerPassword needed.'
-                                    Break
+                                    Write-Error 'Anonymous downloads are not allowed. ServerPassword or InstallerToken may be needed.'
+                                    Continue
                                 }
                             }
                             If ($ServerPassword) { $installer = "$($Svr)/LabTech/Service/LabTechRemoteAgent.msi" }
